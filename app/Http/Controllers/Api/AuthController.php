@@ -44,4 +44,33 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Sesión cerrada']);
     }
+
+    /**
+     * Obtener datos del usuario autenticado (CU21/CU23)
+     */
+    public function user(Request $request)
+    {
+        try {
+            $usuario = $request->user();
+            $usuario->load('roles');
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $usuario->id,
+                    'nombre_completo' => $usuario->nombre_completo,
+                    'email' => $usuario->email,
+                    'activo' => $usuario->activo,
+                    'roles' => $usuario->roles()->pluck('nombre')->toArray()
+                ],
+                'message' => 'Datos del usuario obtenidos'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener datos del usuario',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

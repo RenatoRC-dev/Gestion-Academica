@@ -104,6 +104,14 @@ class PeriodoController extends Controller
                 ], 409);
             }
 
+            // Validar que no tenga horarios asignados
+            if (\App\Models\HorarioAsignado::where('periodo_academico_id', $periodo->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar el período porque tiene horarios asignados'
+                ], 409);
+            }
+
             $periodo->delete();
             return response()->json([
                 'success' => true,
