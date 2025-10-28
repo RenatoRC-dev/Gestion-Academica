@@ -1,0 +1,16 @@
+﻿# Backend (Laravel)
+backend/vendor/
+backend/storage/
+backend/.env
+backend/.env.*
+backend/node_modules/
+
+# Frontend (Vite/React)
+sistema-horarios/node_modules/
+sistema-horarios/dist/
+sistema-horarios/.env
+sistema-horarios/.env.*
+
+# Comunes
+.DS_Store
+Thumbs.db

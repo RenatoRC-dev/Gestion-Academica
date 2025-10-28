@@ -1,0 +1,12 @@
+﻿# Monorepo ignores
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env*
+# Backend (Laravel)
+backend/vendor/
+backend/storage/
+backend/.env*
+# Comunes
+.DS_Store
+Thumbs.db
