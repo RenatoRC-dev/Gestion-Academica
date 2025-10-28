@@ -1,5 +1,0 @@
-0000000000000000000000000000000000000000 d297790b3f5e3ab95497c6d7655f43d0a359e739 Renato Rebollo <renatorebollocondori@gmail.com> 1761521922 -0400	commit (initial): Arranque Backend + Modelos BD
-d297790b3f5e3ab95497c6d7655f43d0a359e739 82ae87f3625204c64d8a2fbbe0cb53a4adcf1210 Renato Rebollo <renatorebollocondori@gmail.com> 1761556281 -0400	commit: Se añadieron casos de usoy ajustes de modelos
-82ae87f3625204c64d8a2fbbe0cb53a4adcf1210 3a3d9222c680481c1b25450c3832b553625d8f75 Renato Rebollo <renatorebollocondori@gmail.com> 1761561818 -0400	commit: Se completaron los casos de uso - ciclo 1
-3a3d9222c680481c1b25450c3832b553625d8f75 60a6b26679f1141f17c76c37d8132f356ac37e92 Renato Rebollo <renatorebollocondori@gmail.com> 1761614579 -0400	commit: Modificaciones en las funcionalidades de los casos de uso
-60a6b26679f1141f17c76c37d8132f356ac37e92 eb693a03aa9803102d81a4b91c4820ed07fc5414 Renato Rebollo <renatorebollocondori@gmail.com> 1761615073 -0400	commit: chore: .gitignore de monorepo (backend y frontend)
