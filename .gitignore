@@ -3,7 +3,6 @@ backend/vendor/
 backend/storage/
 backend/.env
 backend/.env.*
-backend/node_modules/
 
 # Frontend (Vite/React)
 sistema-horarios/node_modules/
