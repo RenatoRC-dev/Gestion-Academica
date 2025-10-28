@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Grupo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class GrupoController extends Controller
 {
     public function index(): JsonResponse
     {
         try {
-            $grupos = Grupo::with(['materia', 'periodo'])->paginate(15);
+            $grupos = Grupo::paginate(15);
             return response()->json([
                 'success' => true,
                 'data' => $grupos,
@@ -31,20 +32,28 @@ class GrupoController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo_grupo' => 'required|string|max:50|unique:grupo,codigo_grupo',
-                'materia_id' => 'required|exists:materia,id',
-                'periodo_academico_id' => 'required|exists:periodo_academico,id',
-                'cupo_maximo' => 'required|integer|min:1',
-                'cupo_minimo' => 'nullable|integer|min:1',
+                'codigo' => 'required|string|max:50|unique:grupo,codigo',
+                'nombre' => 'nullable|string|max:255',
+                'cantidad_maxima' => 'required|integer|min:1|max:100',
+            ], [
+                'codigo.required' => 'El código es requerido',
+                'codigo.unique' => 'Este código ya existe',
+                'cantidad_maxima.required' => 'La cantidad máxima es requerida',
             ]);
 
+            DB::beginTransaction();
+
             $grupo = Grupo::create($validated);
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                'data' => $grupo->load(['materia', 'periodo']),
+                'data' => $grupo,
                 'message' => 'Grupo creado exitosamente'
             ], 201);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al crear grupo',
@@ -58,7 +67,7 @@ class GrupoController extends Controller
         try {
             return response()->json([
                 'success' => true,
-                'data' => $grupo->load(['materia', 'periodo']),
+                'data' => $grupo,
                 'message' => 'Grupo obtenido exitosamente'
             ], 200);
         } catch (\Exception $e) {
@@ -74,20 +83,24 @@ class GrupoController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo_grupo' => 'sometimes|string|max:50|unique:grupo,codigo_grupo,' . $grupo->id,
-                'materia_id' => 'sometimes|exists:materia,id',
-                'periodo_academico_id' => 'sometimes|exists:periodo_academico,id',
-                'cupo_maximo' => 'sometimes|integer|min:1',
-                'cupo_minimo' => 'nullable|integer|min:1',
+                'codigo' => 'sometimes|string|max:50|unique:grupo,codigo,' . $grupo->id,
+                'nombre' => 'nullable|string|max:255',
+                'cantidad_maxima' => 'sometimes|integer|min:1|max:100',
             ]);
 
+            DB::beginTransaction();
+
             $grupo->update($validated);
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                'data' => $grupo,
+                'data' => $grupo->fresh(),
                 'message' => 'Grupo actualizado exitosamente'
             ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al actualizar grupo',
@@ -99,12 +112,16 @@ class GrupoController extends Controller
     public function destroy(Grupo $grupo): JsonResponse
     {
         try {
+            DB::beginTransaction();
             $grupo->delete();
+            DB::commit();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Grupo eliminado exitosamente'
             ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al eliminar grupo',

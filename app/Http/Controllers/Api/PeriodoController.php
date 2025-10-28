@@ -6,17 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\PeriodoAcademico;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PeriodoController extends Controller
 {
     public function index(): JsonResponse
     {
         try {
-            $periodos = PeriodoAcademico::orderBy('fecha_inicio', 'desc')->paginate(15);
+            $periodos = PeriodoAcademico::paginate(15);
             return response()->json([
                 'success' => true,
                 'data' => $periodos,
-                'message' => 'Períodos académicos obtenidos exitosamente'
+                'message' => 'Períodos obtenidos exitosamente'
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
@@ -31,19 +32,31 @@ class PeriodoController extends Controller
     {
         try {
             $validated = $request->validate([
-                'nombre' => 'required|string|max:255',
+                'nombre' => 'required|string|max:100|unique:periodo_academico,nombre',
                 'fecha_inicio' => 'required|date',
                 'fecha_fin' => 'required|date|after:fecha_inicio',
-                'activo' => 'boolean',
+                'activo' => 'nullable|boolean',
+            ], [
+                'nombre.required' => 'El nombre es requerido',
+                'nombre.unique' => 'Este nombre de período ya existe',
+                'fecha_inicio.required' => 'La fecha de inicio es requerida',
+                'fecha_fin.required' => 'La fecha de fin es requerida',
+                'fecha_fin.after' => 'La fecha de fin debe ser posterior a la fecha de inicio',
             ]);
 
+            DB::beginTransaction();
+
             $periodo = PeriodoAcademico::create($validated);
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
                 'data' => $periodo,
-                'message' => 'Período académico creado exitosamente'
+                'message' => 'Período creado exitosamente'
             ], 201);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al crear período',
@@ -58,7 +71,7 @@ class PeriodoController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $periodo,
-                'message' => 'Período académico obtenido exitosamente'
+                'message' => 'Período obtenido exitosamente'
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
@@ -73,19 +86,25 @@ class PeriodoController extends Controller
     {
         try {
             $validated = $request->validate([
-                'nombre' => 'sometimes|string|max:255',
+                'nombre' => 'sometimes|string|max:100|unique:periodo_academico,nombre,' . $periodo->id,
                 'fecha_inicio' => 'sometimes|date',
                 'fecha_fin' => 'sometimes|date|after:fecha_inicio',
-                'activo' => 'boolean',
+                'activo' => 'nullable|boolean',
             ]);
 
+            DB::beginTransaction();
+
             $periodo->update($validated);
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                'data' => $periodo,
-                'message' => 'Período académico actualizado exitosamente'
+                'data' => $periodo->fresh(),
+                'message' => 'Período actualizado exitosamente'
             ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al actualizar período',
@@ -97,27 +116,16 @@ class PeriodoController extends Controller
     public function destroy(PeriodoAcademico $periodo): JsonResponse
     {
         try {
-            if ($periodo->grupos()->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No se puede eliminar el período porque tiene grupos asignados'
-                ], 409);
-            }
-
-            // Validar que no tenga horarios asignados
-            if (\App\Models\HorarioAsignado::where('periodo_academico_id', $periodo->id)->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No se puede eliminar el período porque tiene horarios asignados'
-                ], 409);
-            }
-
+            DB::beginTransaction();
             $periodo->delete();
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Período académico eliminado exitosamente'
+                'message' => 'Período eliminado exitosamente'
             ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al eliminar período',

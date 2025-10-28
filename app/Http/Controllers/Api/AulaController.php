@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Aula;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AulaController extends Controller
 {
     public function index(): JsonResponse
     {
         try {
-            $aulas = Aula::with('tipo')->paginate(15);
+            $aulas = Aula::paginate(15);
             return response()->json([
                 'success' => true,
                 'data' => $aulas,
@@ -31,22 +32,29 @@ class AulaController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo_aula' => 'required|string|max:50|unique:aula,codigo_aula',
-                'capacidad' => 'required|integer|min:1',
-                'tipo_aula_id' => 'required|exists:tipo_aula,id',
-                'ubicacion' => 'required|string|max:500',
-                'equipamiento' => 'nullable|string|max:500',
-                'es_virtual' => 'boolean',
-                'activo' => 'boolean',
+                'nombre' => 'required|string|max:255|unique:aula,nombre',
+                'capacidad' => 'required|integer|min:1|max:200',
+                'ubicacion' => 'nullable|string|max:255',
+                'piso' => 'nullable|integer',
+            ], [
+                'nombre.required' => 'El nombre es requerido',
+                'nombre.unique' => 'Este nombre ya existe',
+                'capacidad.required' => 'La capacidad es requerida',
             ]);
 
+            DB::beginTransaction();
+
             $aula = Aula::create($validated);
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                'data' => $aula->load('tipo'),
+                'data' => $aula,
                 'message' => 'Aula creada exitosamente'
             ], 201);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al crear aula',
@@ -60,7 +68,7 @@ class AulaController extends Controller
         try {
             return response()->json([
                 'success' => true,
-                'data' => $aula->load('tipo'),
+                'data' => $aula,
                 'message' => 'Aula obtenida exitosamente'
             ], 200);
         } catch (\Exception $e) {
@@ -76,22 +84,25 @@ class AulaController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo_aula' => 'sometimes|string|max:50|unique:aula,codigo_aula,' . $aula->id,
-                'capacidad' => 'sometimes|integer|min:1',
-                'tipo_aula_id' => 'sometimes|exists:tipo_aula,id',
-                'ubicacion' => 'sometimes|string|max:500',
-                'equipamiento' => 'nullable|string|max:500',
-                'es_virtual' => 'boolean',
-                'activo' => 'boolean',
+                'nombre' => 'sometimes|string|max:255|unique:aula,nombre,' . $aula->id,
+                'capacidad' => 'sometimes|integer|min:1|max:200',
+                'ubicacion' => 'nullable|string|max:255',
+                'piso' => 'nullable|integer',
             ]);
 
+            DB::beginTransaction();
+
             $aula->update($validated);
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                'data' => $aula,
+                'data' => $aula->fresh(),
                 'message' => 'Aula actualizada exitosamente'
             ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al actualizar aula',
@@ -103,19 +114,16 @@ class AulaController extends Controller
     public function destroy(Aula $aula): JsonResponse
     {
         try {
-            if ($aula->horariosAsignados()->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No se puede eliminar el aula porque tiene horarios asignados'
-                ], 409);
-            }
-
+            DB::beginTransaction();
             $aula->delete();
+            DB::commit();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Aula eliminada exitosamente'
             ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al eliminar aula',

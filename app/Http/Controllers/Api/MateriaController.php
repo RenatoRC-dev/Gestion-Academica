@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Materia;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MateriaController extends Controller
 {
@@ -31,19 +32,30 @@ class MateriaController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo_materia' => 'required|string|max:50|unique:materia,codigo_materia',
+                'codigo' => 'required|string|unique:materia,codigo',
                 'nombre' => 'required|string|max:255',
-                'descripcion' => 'nullable|string|max:1000',
-                'activo' => 'boolean',
+                'creditos' => 'required|integer|min:1|max:20',
+                'horas_teoricas' => 'nullable|integer|min:0',
+            ], [
+                'codigo.required' => 'El código es requerido',
+                'codigo.unique' => 'Este código ya existe',
+                'nombre.required' => 'El nombre es requerido',
+                'creditos.required' => 'Los créditos son requeridos',
             ]);
 
+            DB::beginTransaction();
+
             $materia = Materia::create($validated);
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
                 'data' => $materia,
                 'message' => 'Materia creada exitosamente'
             ], 201);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al crear materia',
@@ -73,19 +85,25 @@ class MateriaController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo_materia' => 'sometimes|string|max:50|unique:materia,codigo_materia,' . $materia->id,
+                'codigo' => 'sometimes|string|unique:materia,codigo,' . $materia->id,
                 'nombre' => 'sometimes|string|max:255',
-                'descripcion' => 'nullable|string|max:1000',
-                'activo' => 'boolean',
+                'creditos' => 'sometimes|integer|min:1|max:20',
+                'horas_teoricas' => 'nullable|integer|min:0',
             ]);
 
+            DB::beginTransaction();
+
             $materia->update($validated);
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                'data' => $materia,
+                'data' => $materia->fresh(),
                 'message' => 'Materia actualizada exitosamente'
             ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al actualizar materia',
@@ -97,19 +115,16 @@ class MateriaController extends Controller
     public function destroy(Materia $materia): JsonResponse
     {
         try {
-            if ($materia->grupos()->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No se puede eliminar la materia porque tiene grupos asignados'
-                ], 409);
-            }
-
+            DB::beginTransaction();
             $materia->delete();
+            DB::commit();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Materia eliminada exitosamente'
             ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al eliminar materia',
