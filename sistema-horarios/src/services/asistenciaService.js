@@ -1,0 +1,122 @@
+import api from './api.js';
+
+const asistenciaService = {
+    listarAsistencias: async ({ page = 1, per_page = 15 } = {}) => {
+        try {
+            const response = await api.get('/asistencias', {
+                params: { page, per_page }
+            });
+
+            if (response.data.success) {
+                return {
+                    rows: response.data.data || [],
+                    meta: response.data.meta || {
+                        current_page: 1,
+                        last_page: 1,
+                        total: 0,
+                        per_page: 15
+                    }
+                };
+            } else {
+                return {
+                    rows: [],
+                    meta: {
+                        current_page: 1,
+                        last_page: 1,
+                        total: 0,
+                        per_page: 15
+                    }
+                };
+            }
+        } catch (error) {
+            console.error('Error listando asistencias:', error);
+            return {
+                rows: [],
+                meta: {
+                    current_page: 1,
+                    last_page: 1,
+                    total: 0,
+                    per_page: 15
+                }
+            };
+        }
+    },
+
+    obtenerAsistencia: async (id) => {
+        try {
+            const response = await api.get(`/asistencias/${id}`);
+            return response.data.success ? response.data.data : null;
+        } catch (error) {
+            console.error('Error obteniendo asistencia:', error);
+            return null;
+        }
+    },
+
+    verificarSesionQR: async () => {
+        try {
+            const response = await api.get('/asistencias/sesion-qr');
+            return {
+                success: response.data.success,
+                activa: response.data.activa || false,
+                mensaje: response.data.mensaje || ''
+            };
+        } catch (error) {
+            console.error('Error verificando sesión QR:', error);
+            return {
+                success: false,
+                activa: false,
+                mensaje: 'No se pudo verificar la sesión QR'
+            };
+        }
+    },
+
+    verificarSesionConfirmacion: async () => {
+        try {
+            const response = await api.get('/asistencias/sesion-confirmacion');
+            return {
+                success: response.data.success,
+                activa: response.data.activa || false,
+                mensaje: response.data.mensaje || ''
+            };
+        } catch (error) {
+            console.error('Error verificando sesión de confirmación:', error);
+            return {
+                success: false,
+                activa: false,
+                mensaje: 'No se pudo verificar la sesión de confirmación'
+            };
+        }
+    },
+
+    generarQR: async (horario_asignado_id) => {
+        try {
+            const response = await api.post('/asistencias/generar-qr', { horario_asignado_id });
+            return response.data.success ? response.data.data : null;
+        } catch (error) {
+            console.error('Error generando QR:', error);
+            return null;
+        }
+    },
+
+    escanearQR: async (codigo_qr) => {
+        try {
+            const response = await api.post('/asistencias/escanear-qr', { codigo_qr });
+            return response.data.success ? response.data.data : null;
+        } catch (error) {
+            console.error('Error escaneando QR:', error);
+            return null;
+        }
+    },
+
+    confirmarAsistenciaVirtual: async (horario_asignado_id) => {
+        try {
+            const response = await api.post('/asistencias/confirmar-virtual', { horario_asignado_id });
+            return response.data.success ? response.data.data : null;
+        } catch (error) {
+            console.error('Error confirmando asistencia virtual:', error);
+            return null;
+        }
+    }
+};
+
+export default asistenciaService;
