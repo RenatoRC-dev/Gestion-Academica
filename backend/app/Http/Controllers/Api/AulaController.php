@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Aula;
+use App\Models\HorarioAsignado;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,7 @@ class AulaController extends Controller
     {
         try {
             $validated = $request->validate([
-                'nombre' => 'required|string|max:255|unique:aula,nombre',
+                'nombre' => 'required|string|max:255|unique:aula,codigo_aula',
                 'capacidad' => 'required|integer|min:1|max:200',
                 'ubicacion' => 'nullable|string|max:255',
                 'piso' => 'nullable|integer',
@@ -44,7 +45,12 @@ class AulaController extends Controller
 
             DB::beginTransaction();
 
-            $aula = Aula::create($validated);
+            $aula = Aula::create([
+                'codigo_aula' => $validated['nombre'],
+                'capacidad' => $validated['capacidad'],
+                'ubicacion' => $validated['ubicacion'] ?? null,
+                'piso' => $validated['piso'] ?? 1,
+            ]);
 
             DB::commit();
 
@@ -84,7 +90,7 @@ class AulaController extends Controller
     {
         try {
             $validated = $request->validate([
-                'nombre' => 'sometimes|string|max:255|unique:aula,nombre,' . $aula->id,
+                'nombre' => 'sometimes|string|max:255|unique:aula,codigo_aula,' . $aula->id,
                 'capacidad' => 'sometimes|integer|min:1|max:200',
                 'ubicacion' => 'nullable|string|max:255',
                 'piso' => 'nullable|integer',
@@ -92,7 +98,12 @@ class AulaController extends Controller
 
             DB::beginTransaction();
 
-            $aula->update($validated);
+            $aula->update(array_filter([
+                'codigo_aula' => $validated['nombre'] ?? null,
+                'capacidad' => $validated['capacidad'] ?? null,
+                'ubicacion' => $validated['ubicacion'] ?? null,
+                'piso' => $validated['piso'] ?? null,
+            ], fn($val) => $val !== null));
 
             DB::commit();
 
@@ -114,6 +125,14 @@ class AulaController extends Controller
     public function destroy(Aula $aula): JsonResponse
     {
         try {
+            // ✅ CORRECCIÓN: Validar que NO tenga horarios asignados activos
+            if (HorarioAsignado::where('aula_id', $aula->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar un aula que tiene horarios asignados'
+                ], 422);
+            }
+
             DB::beginTransaction();
             $aula->delete();
             DB::commit();

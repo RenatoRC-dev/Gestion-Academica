@@ -7,9 +7,23 @@ use Illuminate\Database\Eloquent\Model;
 class Bitacora extends Model
 {
     protected $table = 'bitacora';
-    protected $fillable = ['fecha_hora', 'usuario_id', 'accion', 'tabla_afectada', 'registro_id', 'datos_anteriores', 'datos_nuevos', 'direccion_ip', 'descripcion'];
-    protected $casts = ['fecha_hora' => 'datetime', 'datos_anteriores' => 'json', 'datos_nuevos' => 'json'];
-    public $timestamps = false;
+    public $timestamps = false; // No usar timestamps automáticos
+    protected $fillable = [
+        'fecha_hora',
+        'usuario_id',
+        'accion',
+        'tabla_afectada',
+        'registro_id',
+        'datos_anteriores',
+        'datos_nuevos',
+        'direccion_ip',
+        'descripcion'
+    ];
+    protected $casts = [
+        'fecha_hora' => 'datetime',
+        'datos_anteriores' => 'json',
+        'datos_nuevos' => 'json'
+    ];
 
     public function usuario()
     {

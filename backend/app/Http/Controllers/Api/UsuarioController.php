@@ -121,6 +121,18 @@ class UsuarioController extends Controller
     public function destroy(Usuario $usuario): JsonResponse
     {
         try {
+            // ✅ CORRECCIÓN: No permitir eliminar el último administrador
+            $adminCount = Usuario::whereHas('roles', function($q) {
+                $q->where('nombre', 'administrador_academico');
+            })->count();
+
+            if ($adminCount === 1 && $usuario->roles()->where('nombre', 'administrador_academico')->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar el último administrador del sistema'
+                ], 422);
+            }
+
             DB::beginTransaction();
             $usuario->delete();
             DB::commit();

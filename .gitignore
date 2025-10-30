@@ -13,3 +13,16 @@ sistema-horarios/.env.*
 # Comunes
 .DS_Store
 Thumbs.db
+
+# Root env files
+.env
+.env.*
+
+# Temporary and artifact files
+tmp_*.txt
+out*.txt
+*.rar
+
+# Local duplicates/backups (exclude from VCS)
+backend - copia/
+sistema-horarios - copia/

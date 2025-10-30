@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PeriodoAcademico;
+use App\Models\Grupo;
+use App\Models\HorarioAsignado;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -116,6 +118,21 @@ class PeriodoController extends Controller
     public function destroy(PeriodoAcademico $periodo): JsonResponse
     {
         try {
+            // ✅ CORRECCIÓN: Validar que NO tenga grupos o horarios asociados
+            if (Grupo::where('periodo_academico_id', $periodo->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar un período que tiene grupos académicos'
+                ], 422);
+            }
+
+            if (HorarioAsignado::where('periodo_academico_id', $periodo->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar un período que tiene horarios asignados'
+                ], 422);
+            }
+
             DB::beginTransaction();
             $periodo->delete();
             DB::commit();

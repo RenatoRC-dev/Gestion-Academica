@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\BloqueHorario;
+use App\Models\HorarioAsignado;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ class BloqueHorarioController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $bloques = BloqueHorario::paginate(15);
+            $bloques = BloqueHorario::with(['dia', 'horario'])->paginate(15);
             return response()->json([
                 'success' => true,
                 'data' => $bloques,
@@ -32,19 +33,29 @@ class BloqueHorarioController extends Controller
     {
         try {
             $validated = $request->validate([
-                'numero_bloque' => 'required|integer|min:1|max:10',
-                'dia_semana' => 'required|string|in:Lunes,Martes,Miércoles,Jueves,Viernes,Sábado',
-                'hora_inicio' => 'required|date_format:H:i',
-                'hora_fin' => 'required|date_format:H:i|after:hora_inicio',
+                'dia_id' => 'required|integer|in:1,2,3,4,5,6,7',
+                'horario_id' => 'required|exists:horario,id',
                 'activo' => 'nullable|boolean',
             ], [
-                'numero_bloque.required' => 'El número de bloque es requerido',
-                'dia_semana.required' => 'El día de semana es requerido',
-                'hora_inicio.required' => 'La hora de inicio es requerida',
-                'hora_fin.required' => 'La hora de fin es requerida',
+                'dia_id.required' => 'El día es requerido',
+                'dia_id.in' => 'El día debe ser entre 1 (Lunes) y 7 (Domingo)',
+                'horario_id.required' => 'El horario es requerido',
+                'horario_id.exists' => 'El horario no existe',
             ]);
 
             DB::beginTransaction();
+
+            // Verificar que no exista combinación día-horario
+            $existente = BloqueHorario::where('dia_id', $validated['dia_id'])
+                ->where('horario_id', $validated['horario_id'])
+                ->first();
+
+            if ($existente) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya existe un bloque horario para este día y horario'
+                ], 409);
+            }
 
             $bloque = BloqueHorario::create($validated);
 
@@ -52,7 +63,7 @@ class BloqueHorarioController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $bloque,
+                'data' => $bloque->load(['dia', 'horario']),
                 'message' => 'Bloque horario creado exitosamente'
             ], 201);
         } catch (\Exception $e) {
@@ -68,6 +79,7 @@ class BloqueHorarioController extends Controller
     public function show(BloqueHorario $bloqueHorario): JsonResponse
     {
         try {
+            $bloqueHorario->load(['dia', 'horario']);
             return response()->json([
                 'success' => true,
                 'data' => $bloqueHorario,
@@ -86,10 +98,8 @@ class BloqueHorarioController extends Controller
     {
         try {
             $validated = $request->validate([
-                'numero_bloque' => 'sometimes|integer|min:1|max:10',
-                'dia_semana' => 'sometimes|string|in:Lunes,Martes,Miércoles,Jueves,Viernes,Sábado',
-                'hora_inicio' => 'sometimes|date_format:H:i',
-                'hora_fin' => 'sometimes|date_format:H:i',
+                'dia_id' => 'sometimes|integer|in:1,2,3,4,5,6,7',
+                'horario_id' => 'sometimes|exists:horario,id',
                 'activo' => 'nullable|boolean',
             ]);
 
@@ -101,7 +111,7 @@ class BloqueHorarioController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $bloqueHorario->fresh(),
+                'data' => $bloqueHorario->fresh()->load(['dia', 'horario']),
                 'message' => 'Bloque horario actualizado exitosamente'
             ], 200);
         } catch (\Exception $e) {
@@ -117,6 +127,14 @@ class BloqueHorarioController extends Controller
     public function destroy(BloqueHorario $bloqueHorario): JsonResponse
     {
         try {
+            // ✅ CORRECCIÓN: Validar que NO esté en uso en horarios asignados
+            if (HorarioAsignado::where('bloque_horario_id', $bloqueHorario->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar un bloque horario que está en uso en horarios asignados'
+                ], 422);
+            }
+
             DB::beginTransaction();
             $bloqueHorario->delete();
             DB::commit();

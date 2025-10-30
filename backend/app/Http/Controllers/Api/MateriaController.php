@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Materia;
+use App\Models\Grupo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,7 @@ class MateriaController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo' => 'required|string|unique:materia,codigo',
+                'codigo' => 'required|string|unique:materia,codigo_materia',
                 'nombre' => 'required|string|max:255',
                 'creditos' => 'required|integer|min:1|max:20',
                 'horas_teoricas' => 'nullable|integer|min:0',
@@ -45,7 +46,12 @@ class MateriaController extends Controller
 
             DB::beginTransaction();
 
-            $materia = Materia::create($validated);
+            $materia = Materia::create([
+                'codigo_materia' => $validated['codigo'],
+                'nombre' => $validated['nombre'],
+                'creditos' => $validated['creditos'] ?? null,
+                'horas_teoricas' => $validated['horas_teoricas'] ?? null,
+            ]);
 
             DB::commit();
 
@@ -85,7 +91,7 @@ class MateriaController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo' => 'sometimes|string|unique:materia,codigo,' . $materia->id,
+                'codigo' => 'sometimes|string|unique:materia,codigo_materia,' . $materia->id,
                 'nombre' => 'sometimes|string|max:255',
                 'creditos' => 'sometimes|integer|min:1|max:20',
                 'horas_teoricas' => 'nullable|integer|min:0',
@@ -93,7 +99,12 @@ class MateriaController extends Controller
 
             DB::beginTransaction();
 
-            $materia->update($validated);
+            $materia->update(array_filter([
+                'codigo_materia' => $validated['codigo'] ?? null,
+                'nombre' => $validated['nombre'] ?? null,
+                'creditos' => $validated['creditos'] ?? null,
+                'horas_teoricas' => $validated['horas_teoricas'] ?? null,
+            ], fn($val) => $val !== null));
 
             DB::commit();
 
@@ -115,6 +126,14 @@ class MateriaController extends Controller
     public function destroy(Materia $materia): JsonResponse
     {
         try {
+            // ✅ CORRECCIÓN: Validar que NO tenga grupos activos
+            if (Grupo::where('materia_id', $materia->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar una materia que tiene grupos académicos activos'
+                ], 422);
+            }
+
             DB::beginTransaction();
             $materia->delete();
             DB::commit();

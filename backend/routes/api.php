@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
@@ -16,7 +16,10 @@ use App\Http\Controllers\Api\UsuarioRolController;
 use App\Http\Controllers\Api\BitacoraController;
 
 // Rutas públicas
-Route::post('/login', [AuthController::class, 'login']);
+// Corrección: Rate limiting contra fuerza bruta (5 intentos por minuto)
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+Route::post('/register', [UsuarioController::class, 'store'])->middleware('throttle:5,1');
+
 
 // Rutas protegidas (requieren token)
 Route::middleware('auth:sanctum')->group(function () {
@@ -42,30 +45,36 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Horarios - CU10, CU11, CU12
     Route::prefix('horarios')->group(function () {
-        Route::get('/', [HorarioController::class, 'index']);                           // CU11 Listar
-        Route::get('/{horarioAsignado}', [HorarioController::class, 'show']);           // CU11 Detalle
-        Route::put('/{horarioAsignado}', [HorarioController::class, 'update']);         // CU12 Modificar
-        Route::delete('/{horarioAsignado}', [HorarioController::class, 'destroy']);     // CU12 Eliminar
-        Route::post('/generar', [HorarioController::class, 'generar']);                 // CU10 Generar Auto
-        Route::get('/docente/{docenteId}', [HorarioController::class, 'porDocente']);   // CU11 Por docente
-        Route::get('/aula/{aulaId}', [HorarioController::class, 'porAula']);            // CU11 Por aula
-        Route::get('/grupo/{grupoId}', [HorarioController::class, 'porGrupo']);         // CU11 Por grupo
+        Route::get('/', [HorarioController::class, 'index']);
+        Route::get('/{horarioAsignado}', [HorarioController::class, 'show']);
+        Route::put('/{horarioAsignado}', [HorarioController::class, 'update']);
+        Route::delete('/{horarioAsignado}', [HorarioController::class, 'destroy']);
+        Route::post('/generar', [HorarioController::class, 'generar']);
+        Route::get('/docente/{docenteId}', [HorarioController::class, 'porDocente']);
+        Route::get('/aula/{aulaId}', [HorarioController::class, 'porAula']);
+        Route::get('/grupo/{grupoId}', [HorarioController::class, 'porGrupo']);
+        Route::get('/periodo/{periodoId}', [HorarioController::class, 'porPeriodo']);
     });
 
     // Asistencia - CU13, CU14, CU15
     Route::prefix('asistencias')->group(function () {
-        Route::get('/', [AsistenciaController::class, 'index']);                        // Listar
-        Route::get('/{asistencia}', [AsistenciaController::class, 'show']);             // Detalle
-        Route::post('/generar-qr', [AsistenciaController::class, 'generarQR']);         // CU13 Generar QR
-        Route::post('/escanear-qr', [AsistenciaController::class, 'escanearQR']);       // CU14 Escanear QR
-        Route::post('/confirmar-virtual', [AsistenciaController::class, 'confirmarVirtual']); // CU15 Virtual
+        Route::get('/', [AsistenciaController::class, 'index']);
+        Route::get('/{asistencia}', [AsistenciaController::class, 'show']);
+        Route::post('/generar-qr', [AsistenciaController::class, 'generarQR']);
+        Route::post('/escanear-qr', [AsistenciaController::class, 'escanearQR']);
+        Route::post('/confirmar-virtual', [AsistenciaController::class, 'confirmarVirtual']);
     });
 
-    // Bitácora - CU27
+    // BitÃ¡cora - CU27
     Route::get('/bitacora', [BitacoraController::class, 'index']);
     Route::get('/bitacora/{bitacora}', [BitacoraController::class, 'show']);
+
+    // MÃ©tricas del sistema
+    Route::get('/metricas', [App\Http\Controllers\Api\MetricasController::class, 'obtenerMetricasGenerales']);
 });
 
 Route::fallback(function () {
     return response()->json(['error' => 'Endpoint no encontrado'], 404);
 });
+
+

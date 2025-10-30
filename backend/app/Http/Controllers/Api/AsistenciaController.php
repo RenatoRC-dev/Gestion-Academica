@@ -10,6 +10,7 @@ use App\Models\Docente;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class AsistenciaController extends Controller
@@ -93,38 +94,46 @@ class AsistenciaController extends Controller
                 ], 400);
             }
 
+            // Validar bloque horario existente
+            $bloqueHorario = $horario->bloqueHorario;
+            if (!$bloqueHorario) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El bloque horario asociado no existe'
+                ], 400);
+            }
+
             DB::beginTransaction();
 
-            // Generar hash único para el QR
+            // Hash único para el QR
             $codigo_hash = hash('sha256',
                 $validated['horario_asignado_id'] . '_' .
                 now()->timestamp . '_' .
                 Str::random(32)
             );
 
-            // Crear registro en tabla codigo_qr_asistencia
+            // TTL de 1 minuto para pruebas (luego vuelve a 30)
             $qr = CodigoQRAsistencia::create([
-                'horario_asignado_id' => $validated['horario_asignado_id'],
-                'codigo_hash' => $codigo_hash,
+                'horario_asignado_id'   => $validated['horario_asignado_id'],
+                'codigo_hash'           => $codigo_hash,
                 'fecha_hora_generacion' => now(),
-                'fecha_hora_expiracion' => now()->addMinutes(30), // Expira en 30 min
-                'utilizado' => false,
+                'fecha_hora_expiracion' => now()->addMinutes(10), // CHG: 1 minuto para pruebas
+                'utilizado'             => false,
             ]);
 
             DB::commit();
 
-            // Generar imagen QR usando servicio externo
             $qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' .
                 urlencode($codigo_hash);
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'id' => $qr->id,
-                    'codigo_hash' => $codigo_hash,
-                    'fecha_generacion' => $qr->fecha_hora_generacion,
-                    'fecha_expiracion' => $qr->fecha_hora_expiracion,
-                    'qr_image_url' => $qrImageUrl,
+                    'id'                  => $qr->id,
+                    'codigo_hash'         => $codigo_hash,
+                    'fecha_generacion'    => $qr->fecha_hora_generacion,
+                    'fecha_expiracion'    => $qr->fecha_hora_expiracion,
+                    'qr_image_url'        => $qrImageUrl,
                     'horario_asignado_id' => $horario->id,
                 ],
                 'message' => 'Código QR generado exitosamente'
@@ -142,6 +151,7 @@ class AsistenciaController extends Controller
 
     /**
      * CU14 - Escanear Código QR y Registrar Asistencia
+     * SOLUCIÓN DEFINITIVA: Comparación usando valores RAW de la BD
      */
     public function escanearQR(Request $request): JsonResponse
     {
@@ -154,55 +164,120 @@ class AsistenciaController extends Controller
 
             DB::beginTransaction();
 
-            // Buscar el código QR en la BD
-            $qrRecord = CodigoQRAsistencia::where('codigo_hash', $validated['codigo_qr'])
-                ->firstOrFail();
+            // Buscar QR por hash
+            $qrRecord = CodigoQRAsistencia::where('codigo_hash', $validated['codigo_qr'])->first();
 
-            // Validar que NO haya sido utilizado
-            if ($qrRecord->utilizado) {
+            if (!$qrRecord) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
-                    'message' => 'Este código QR ya ha sido utilizado'
-                ], 422);
+                    'message' => 'Código QR no válido o no encontrado'
+                ], 404);
             }
 
-            // Validar que NO haya expirado
-            if (now() > $qrRecord->fecha_hora_expiracion) {
+            // SOLUCIÓN: Comparar usando query SQL directa para evitar problemas de timezone
+            // Esto compara directamente en la base de datos sin conversiones de timezone
+            $estaExpirado = DB::selectOne(
+                "SELECT CASE WHEN fecha_hora_expiracion < NOW() THEN 1 ELSE 0 END as expirado 
+                 FROM codigo_qr_asistencia 
+                 WHERE id = ?",
+                [$qrRecord->id]
+            )->expirado;
+
+            if ($estaExpirado) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'Este código QR ha expirado'
                 ], 422);
             }
 
+            // Verificar si ya fue utilizado
+            if ($qrRecord->utilizado) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Este código QR ya ha sido utilizado'
+                ], 422);
+            }
+
+            // Consumo atómico - sin verificar expiración en el UPDATE
+            $afectadas = CodigoQRAsistencia::whereKey($qrRecord->id)
+                ->where('utilizado', false)
+                ->update([
+                    'utilizado'  => true,
+                    'updated_at' => now(),
+                ]);
+
+            // Si no se actualizó, es por condición de carrera
+            if ($afectadas === 0) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Este código QR ya ha sido utilizado (intento concurrente)'
+                ], 422);
+            }
+
             $horarioAsignado = $qrRecord->horarioAsignado;
 
-            // Obtener docente autenticado
+            // Usuario autenticado
             $usuarioActual = auth()->user();
-            $docente = Docente::whereHas('persona.usuario', function ($query) use ($usuarioActual) {
-                $query->where('usuario_id', $usuarioActual->id);
-            })->firstOrFail();
 
-            // Validar que el docente sea el asignado a esta clase
+            // Validar rol docente
+            $tieneRolDocente = $usuarioActual->roles()->where('nombre', 'docente')->exists();
+            if (!$tieneRolDocente) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solo los docentes pueden registrar asistencia'
+                ], 403);
+            }
+
+            // Perfil docente vinculado al usuario
+            $docente = Docente::whereHas('persona.usuario', function ($q) use ($usuarioActual) {
+                $q->where('usuario_id', $usuarioActual->id);
+            })->first();
+
+            if (!$docente) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró perfil de docente para este usuario'
+                ], 403);
+            }
+
+            // Debe coincidir el docente de la clase
             if ($docente->persona_id != $horarioAsignado->docente_id) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'No tienes permiso para confirmar asistencia de otra clase'
                 ], 403);
             }
 
-            // Crear registro de asistencia
+            // Anti-duplicado
+            $yaRegistrada = Asistencia::where('horario_asignado_id', $horarioAsignado->id)
+                ->where('docente_id', $docente->persona_id)
+                ->exists();
+
+            if ($yaRegistrada) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La asistencia de este docente ya fue registrada para esta clase'
+                ], 422);
+            }
+
+            // Crear asistencia
             $asistencia = Asistencia::create([
                 'horario_asignado_id' => $horarioAsignado->id,
-                'docente_id' => $docente->persona_id,
+                'docente_id'          => $docente->persona_id,
                 'fecha_hora_registro' => now(),
-                'estado_id' => 1, // Presente
-                'metodo_registro_id' => 1, // QR
-                'codigo_qr_id' => $qrRecord->id,
-                'registrado_por_id' => $usuarioActual->id,
+                'estado_id'           => 1, // Presente
+                'metodo_registro_id'  => 1, // QR
+                'codigo_qr_id'        => $qrRecord->id,
+                'registrado_por_id'   => $usuarioActual->id,
             ]);
-
-            // Marcar QR como utilizado
-            $qrRecord->update(['utilizado' => true]);
 
             DB::commit();
 
@@ -210,25 +285,19 @@ class AsistenciaController extends Controller
                 'success' => true,
                 'data' => [
                     'asistencia_id' => $asistencia->id,
-                    'estado' => 'Presente',
+                    'estado'        => 'Presente',
                     'hora_registro' => $asistencia->fecha_hora_registro,
-                    'horario' => $horarioAsignado->load('grupo.materia', 'bloqueHorario', 'aula'),
+                    'horario'       => $horarioAsignado->load('grupo.materia', 'bloqueHorario', 'aula'),
                 ],
                 'message' => 'Asistencia registrada exitosamente'
             ], 201);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Código QR no válido o no encontrado'
-            ], 404);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al registrar asistencia',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage()
             ], 500);
         }
     }
@@ -243,60 +312,92 @@ class AsistenciaController extends Controller
                 'horario_asignado_id' => 'required|exists:horario_asignado,id',
             ], [
                 'horario_asignado_id.required' => 'El ID del horario asignado es requerido',
-                'horario_asignado_id.exists' => 'El horario asignado no existe',
+                'horario_asignado_id.exists'   => 'El horario asignado no existe',
             ]);
 
             DB::beginTransaction();
 
             $horario = HorarioAsignado::findOrFail($validated['horario_asignado_id']);
 
-            // Validar que sea modalidad Virtual
             if ($horario->modalidad_id != 2) { // 2 = Virtual
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'Esta clase no está marcada como Virtual Autorizado'
                 ], 400);
             }
 
-            // Validar ventana de tiempo (±15 minutos del inicio del bloque)
             $bloqueHorario = $horario->bloqueHorario;
+            if (!$bloqueHorario || !$bloqueHorario->horario) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El bloque horario no está correctamente configurado'
+                ], 400);
+            }
+
             $ahora = now();
+            $horaInicioStr = (string) $bloqueHorario->horario->hora_inicio;
+            [$h, $m] = explode(':', $horaInicioStr);
+            $inicioBloque = now()->setHour((int)$h)->setMinute((int)$m)->setSecond(0);
 
-            // Parsear hora de inicio del bloque
-            [$horas, $minutos] = explode(':', $bloqueHorario->hora_inicio);
-            $inicioBloque = now()->setHour((int)$horas)->setMinute((int)$minutos)->setSecond(0);
-
-            $diferenciaMinutos = abs($ahora->diffInMinutes($inicioBloque, false));
-
-            if ($diferenciaMinutos > 15) {
+            if (abs($ahora->diffInMinutes($inicioBloque, false)) > 15) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'Solo puedes confirmar asistencia en la ventana de ±15 minutos de la hora de clase'
                 ], 422);
             }
 
-            // Obtener docente autenticado
             $usuarioActual = auth()->user();
-            $docente = Docente::whereHas('persona.usuario', function ($query) use ($usuarioActual) {
-                $query->where('usuario_id', $usuarioActual->id);
-            })->firstOrFail();
+            $tieneRolDocente = $usuarioActual->roles()->where('nombre', 'docente')->exists();
+            if (!$tieneRolDocente) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solo los docentes pueden confirmar asistencia virtual'
+                ], 403);
+            }
 
-            // Validar que el docente sea el asignado a esta clase
+            $docente = Docente::whereHas('persona.usuario', function ($q) use ($usuarioActual) {
+                $q->where('usuario_id', $usuarioActual->id);
+            })->first();
+
+            if (!$docente) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró perfil de docente para este usuario'
+                ], 403);
+            }
+
             if ($docente->persona_id != $horario->docente_id) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'No tienes permiso para confirmar asistencia de otra clase'
                 ], 403);
             }
 
-            // Crear registro de asistencia
+            $yaRegistrada = Asistencia::where('horario_asignado_id', $horario->id)
+                ->where('docente_id', $docente->persona_id)
+                ->exists();
+
+            if ($yaRegistrada) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La asistencia de este docente ya fue registrada para esta clase'
+                ], 422);
+            }
+
             $asistencia = Asistencia::create([
                 'horario_asignado_id' => $horario->id,
-                'docente_id' => $docente->persona_id,
+                'docente_id'          => $docente->persona_id,
                 'fecha_hora_registro' => now(),
-                'estado_id' => 1, // Presente
-                'metodo_registro_id' => 4, // Confirmación Virtual
-                'registrado_por_id' => $usuarioActual->id,
+                'estado_id'           => 1, // Presente
+                'metodo_registro_id'  => 4, // Confirmación Virtual
+                'registrado_por_id'   => $usuarioActual->id,
             ]);
 
             DB::commit();
@@ -305,26 +406,20 @@ class AsistenciaController extends Controller
                 'success' => true,
                 'data' => [
                     'asistencia_id' => $asistencia->id,
-                    'estado' => 'Presente',
+                    'estado'        => 'Presente',
                     'hora_registro' => $asistencia->fecha_hora_registro,
-                    'modalidad' => 'Virtual',
-                    'horario' => $horario->load('grupo.materia', 'aula', 'docente.persona'),
+                    'modalidad'     => 'Virtual',
+                    'horario'       => $horario->load('grupo.materia', 'aula', 'docente.persona'),
                 ],
                 'message' => 'Asistencia virtual confirmada exitosamente'
             ], 201);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'El horario asignado no existe'
-            ], 404);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al confirmar asistencia virtual',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage()
             ], 500);
         }
     }

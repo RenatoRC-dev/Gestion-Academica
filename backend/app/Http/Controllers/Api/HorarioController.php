@@ -79,10 +79,20 @@ class HorarioController extends Controller
 
     /**
      * CU12 - Modificar Horario Manualmente
+     * CORRECCIÓN CRÍTICA: Validación de conflictos reparada
      */
     public function update(Request $request, HorarioAsignado $horarioAsignado): JsonResponse
     {
         try {
+            // Solo administrador puede modificar horarios
+            $usuario = auth()->user();
+            if (!$usuario->roles()->where('nombre', 'administrador_academico')->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para modificar horarios'
+                ], 403);
+            }
+
             $validated = $request->validate([
                 'docente_id' => 'sometimes|exists:docente,persona_id',
                 'aula_id' => 'sometimes|exists:aula,id',
@@ -100,7 +110,8 @@ class HorarioController extends Controller
                 $aulaId,
                 $bloqueId,
                 $horarioAsignado->periodo_academico_id,
-                $docenteId
+                $docenteId,
+                $horarioAsignado->id // Excluir el horario actual
             );
 
             if (!$validacion['valido']) {
@@ -144,6 +155,15 @@ class HorarioController extends Controller
     public function destroy(HorarioAsignado $horarioAsignado): JsonResponse
     {
         try {
+            // Solo administrador puede eliminar horarios
+            $usuario = auth()->user();
+            if (!$usuario->roles()->where('nombre', 'administrador_academico')->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para eliminar horarios'
+                ], 403);
+            }
+
             DB::beginTransaction();
             $horarioAsignado->delete();
             DB::commit();
@@ -168,6 +188,15 @@ class HorarioController extends Controller
     public function generar(Request $request): JsonResponse
     {
         try {
+            // Solo administrador puede generar horarios
+            $usuario = auth()->user();
+            if (!$usuario->roles()->where('nombre', 'administrador_academico')->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para generar horarios'
+                ], 403);
+            }
+
             $validated = $request->validate([
                 'periodo_id' => 'required|exists:periodo_academico,id',
             ], [
@@ -266,7 +295,7 @@ class HorarioController extends Controller
         try {
             $horarios = HorarioAsignado::where('grupo_id', $grupoId)
                 ->with([
-                    'materia',
+                    'grupo.materia',
                     'docente.persona',
                     'aula',
                     'bloqueHorario',
@@ -284,6 +313,38 @@ class HorarioController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener horarios del grupo',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * CU11 - Visualizar horarios por período académico
+     * NUEVO: Filtrado por período
+     */
+    public function porPeriodo(int $periodoId): JsonResponse
+    {
+        try {
+            $horarios = HorarioAsignado::where('periodo_academico_id', $periodoId)
+                ->with([
+                    'grupo.materia',
+                    'docente.persona',
+                    'aula',
+                    'bloqueHorario',
+                    'periodo',
+                    'modalidad'
+                ])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $horarios,
+                'message' => 'Horarios del período obtenidos'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener horarios del período',
                 'error' => $e->getMessage()
             ], 500);
         }

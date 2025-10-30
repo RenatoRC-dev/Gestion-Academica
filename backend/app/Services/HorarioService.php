@@ -19,7 +19,6 @@ class HorarioService
     private int $PISO_ALTO = 5;           // A partir de qué piso penalizar
     private bool $tiene_ascensor = true;  // Configuración
 
-    // Tipos de aula permitidos (del seeder)
     private array $tiposAulaPermitidos = [
         'Aula Teoría',
         'Laboratorio',
@@ -27,27 +26,20 @@ class HorarioService
         'Auditorio'
     ];
 
-    // Modalidades de clase disponibles
     private array $modalidadesClase = [
         'Presencial' => 'Clase presencial',
         'Virtual' => 'Clase virtual',
-        'Híbrida' => 'Clase híbrida'
     ];
 
-    // Métodos de registro de asistencia disponibles
     private array $metodosAsistencia = [
         'QR' => 'Código QR',
         'Manual' => 'Registro manual',
-        'Biométrico' => 'Biométrico',
         'Confirmación Virtual' => 'Confirmación virtual'
     ];
 
-    private array $asignacion = [];       // grupo_id => [aula_id, bloque_id]
-    private array $ocupacion = [];        // "aula|bloque" => grupo_id
+    private array $asignacion = [];
+    private array $ocupacion = [];
 
-    /**
-     * Constructor con parámetros configurables
-     */
     public function __construct(float $delta = 0.15, float $lambda = 2.0, int $piso = 5)
     {
         $this->DELTA = $delta;
@@ -55,19 +47,13 @@ class HorarioService
         $this->PISO_ALTO = $piso;
     }
 
-    /**
-     * Calcular penalidad por asignación
-     * Penaliza: asientos vacíos + pisos altos sin ascensor
-     */
     private function calcularPenalidad(array $grupo, array $aula): float
     {
         $vacios = $aula['capacidad'] - $grupo['tamano'];
         $delta = $this->DELTA * $aula['capacidad'];
         
-        // Penalidad por asientos vacíos (solo si excede tolerancia)
         $penVacios = $this->LAMBDA * max(0, $vacios - $delta);
         
-        // Penalidad por piso alto sin ascensor
         $penPiso = 0;
         if (!$this->tiene_ascensor && $aula['piso'] >= $this->PISO_ALTO) {
             $penPiso = $this->PENAL_PISO;
@@ -76,20 +62,13 @@ class HorarioService
         return $penVacios + $penPiso;
     }
 
-    /**
-     * Validar compatibilidad entre grupo y tipo de aula
-     * Permite asignación flexible pero prioriza compatibilidad
-     */
     private function validarTipoAula(string $tipoAula, string $tipoGrupo): bool
     {
-        // Todos los grupos pueden ir a cualquier aula (flexible)
-        // Pero esta validación permite agregar restricciones específicas si es necesario
         return true;
     }
 
     /**
-     * Generar horario automático para un período
-     * CU10 - Generar Horario Automáticamente
+     * ✅ CORRECCIÓN CU10: Verificar horarios existentes y validar conflictos en tiempo real
      */
     public function generarHorario(int $periodoId): array
     {
@@ -98,7 +77,13 @@ class HorarioService
             throw new \Exception("Periodo académico no encontrado");
         }
 
-        // Obtener grupos del período
+        // ✅ NUEVO: Verificar si ya existen horarios para este período
+        $horariosExistentes = HorarioAsignado::where('periodo_academico_id', $periodoId)->count();
+        if ($horariosExistentes > 0) {
+            throw new \Exception("Ya existen horarios generados para este período. " .
+                "Elimine los horarios existentes antes de generar nuevos.");
+        }
+
         $grupos = Grupo::where('periodo_academico_id', $periodoId)
             ->with('materia')
             ->get()
@@ -114,7 +99,6 @@ class HorarioService
             })
             ->toArray();
 
-        // Obtener aulas con tipo específico (Aula Teoría, Laboratorio, Taller, Auditorio)
         $aulas = Aula::where('es_virtual', false)
             ->where('activo', true)
             ->with('tipoAula')
@@ -132,7 +116,6 @@ class HorarioService
             })
             ->toArray();
 
-        // Obtener bloques horarios
         $bloques = BloqueHorario::where('activo', true)
             ->with(['dia', 'horario'])
             ->get()
@@ -147,7 +130,6 @@ class HorarioService
             })
             ->toArray();
 
-        // Obtener docentes disponibles
         $docentes = Docente::with('persona')
             ->get()
             ->map(function ($d) {
@@ -164,18 +146,38 @@ class HorarioService
                 ", Bloques: " . count($bloques) . ", Docentes: " . count($docentes));
         }
 
-        // Ejecutar heurística
         $this->ejecutarHeuristica($grupos, $aulas, $bloques, $docentes);
 
-        // Guardar asignaciones en BD
         $asignacionesCreadas = 0;
         $modalidad = ModalidadClase::where('nombre', 'Presencial')->first();
 
         foreach ($this->asignacion as $grupoId => $asignacion) {
             [$aulaId, $bloqueId] = $asignacion;
 
-            // Seleccionar docente aleatorio disponible
-            $docente = collect($docentes)->random();
+            $docente = $this->encontrarDocenteDisponible(
+                $docentes,
+                $bloqueId,
+                $periodoId
+            );
+
+            if (!$docente) {
+                continue;
+            }
+
+            // ✅ CORRECCIÓN CRÍTICA CU10: Validar conflictos ANTES de crear
+            $validacion = $this->validarAsignacion(
+                $grupoId,
+                $aulaId,
+                $bloqueId,
+                $periodoId,
+                $docente['id'],
+                null
+            );
+
+            if (!$validacion['valido']) {
+                // Saltar grupo si hay conflictos
+                continue;
+            }
 
             HorarioAsignado::create([
                 'grupo_id' => $grupoId,
@@ -203,16 +205,27 @@ class HorarioService
         ];
     }
 
-    /**
-     * Ejecutar heurística de asignación de horarios
-     * Adaptado de algoritmo.py (curso IO)
-     */
+    private function encontrarDocenteDisponible(array $docentes, int $bloqueId, int $periodoId): ?array
+    {
+        $docentesOcupados = HorarioAsignado::where('bloque_horario_id', $bloqueId)
+            ->where('periodo_academico_id', $periodoId)
+            ->pluck('docente_id')
+            ->toArray();
+
+        foreach ($docentes as $docente) {
+            if (!in_array($docente['id'], $docentesOcupados)) {
+                return $docente;
+            }
+        }
+
+        return null;
+    }
+
     private function ejecutarHeuristica(array &$grupos, array &$aulas, array &$bloques, array &$docentes): void
     {
         $this->asignacion = [];
         $this->ocupacion = [];
 
-        // 1. Inicializar ocupación vacía (matriz de disponibilidad)
         foreach ($aulas as $aula) {
             foreach ($bloques as $bloque) {
                 $key = $aula['id'] . '|' . $bloque['id'];
@@ -220,35 +233,29 @@ class HorarioService
             }
         }
 
-        // 2. Ordenar grupos (grandes primero para mejor colocación)
         usort($grupos, function ($a, $b) {
             if ($a['tamano'] !== $b['tamano']) {
-                return $b['tamano'] - $a['tamano']; // Descendente por tamaño
+                return $b['tamano'] - $a['tamano'];
             }
-            // Entre iguales, tipo M antes que C
             if ($a['tipo'] === 'M' && $b['tipo'] !== 'M') return -1;
             if ($a['tipo'] !== 'M' && $b['tipo'] === 'M') return 1;
             return 0;
         });
 
-        // 3. Asignar cada grupo al mejor (aula, bloque) según penalidad
         foreach ($grupos as $grupo) {
             $mejorPenal = 1e18;
             $mejorPar = null;
 
             foreach ($aulas as $aula) {
-                // Validar capacidad (aula debe tener espacio)
                 if ($grupo['tamano'] > $aula['capacidad']) {
                     continue;
                 }
 
-                // Validar compatibilidad de tipo de aula
                 if (!$this->validarTipoAula($aula['tipo'], $grupo['tipo'])) {
                     continue;
                 }
 
                 foreach ($bloques as $bloque) {
-                    // Validar vetos (bloques/aulas rechazadas)
                     if (in_array($bloque['id'], $grupo['vetos_bloques'])) {
                         continue;
                     }
@@ -256,16 +263,13 @@ class HorarioService
                         continue;
                     }
 
-                    // Verificar disponibilidad (aula libre en bloque)
                     $key = $aula['id'] . '|' . $bloque['id'];
                     if ($this->ocupacion[$key] !== null) {
                         continue;
                     }
 
-                    // Calcular penalidad (función objetivo)
                     $penal = $this->calcularPenalidad($grupo, $aula);
 
-                    // Seleccionar mejor opción
                     if ($penal < $mejorPenal) {
                         $mejorPenal = $penal;
                         $mejorPar = [$aula['id'], $bloque['id']];
@@ -273,7 +277,6 @@ class HorarioService
                 }
             }
 
-            // Si encuentra asignación válida, guardar
             if ($mejorPar !== null) {
                 $this->asignacion[$grupo['id']] = $mejorPar;
                 $key = $mejorPar[0] . '|' . $mejorPar[1];
@@ -282,10 +285,6 @@ class HorarioService
         }
     }
 
-    /**
-     * Calcular valor objetivo (función de mérito final)
-     * total_alumnos - penalidad_total
-     */
     private function calcularValorObjetivo(array $grupos, array $aulas): float
     {
         $totalAlumnos = 0;
@@ -307,10 +306,10 @@ class HorarioService
     }
 
     /**
-     * Validar conflicto antes de modificar horario manualmente
-     * CU12 - Modificar Horario Manualmente
+     * ✅ CORRECCIÓN CRÍTICA CU12: Lógica de validación reparada
+     * Cambio principal: Validar que grupo NO esté en el MISMO BLOQUE (no OR)
      */
-    public function validarAsignacion(int $grupoId, int $aulaId, int $bloqueId, int $periodoId, ?int $docenteId = null): array
+    public function validarAsignacion(int $grupoId, int $aulaId, int $bloqueId, int $periodoId, ?int $docenteId = null, ?int $horarioActualId = null): array
     {
         $conflictos = [];
 
@@ -318,22 +317,31 @@ class HorarioService
         $aulaOcupada = HorarioAsignado::where('aula_id', $aulaId)
             ->where('bloque_horario_id', $bloqueId)
             ->where('periodo_academico_id', $periodoId)
-            ->where('grupo_id', '!=', $grupoId)
-            ->first();
+            ->where('grupo_id', '!=', $grupoId);
+        
+        if ($horarioActualId) {
+            $aulaOcupada = $aulaOcupada->where('id', '!=', $horarioActualId);
+        }
+        
+        $aulaOcupada = $aulaOcupada->first();
 
         if ($aulaOcupada) {
             $conflictos[] = 'El aula ya está ocupada en este bloque horario';
         }
 
-        // Verificar grupo no esté en otro lugar simultáneamente
+        // ✅ CORRECCIÓN: Un grupo NO puede estar en el MISMO bloque horario (no OR lógico)
         $grupoOcupado = HorarioAsignado::where('grupo_id', $grupoId)
-            ->where('periodo_academico_id', $periodoId)
-            ->where('aula_id', '!=', $aulaId)
-            ->orWhere('bloque_horario_id', '!=', $bloqueId)
-            ->first();
+            ->where('bloque_horario_id', $bloqueId)
+            ->where('periodo_academico_id', $periodoId);
+        
+        if ($horarioActualId) {
+            $grupoOcupado = $grupoOcupado->where('id', '!=', $horarioActualId);
+        }
+        
+        $grupoOcupado = $grupoOcupado->first();
 
         if ($grupoOcupado) {
-            $conflictos[] = 'El grupo ya tiene una clase en otro horario/aula';
+            $conflictos[] = 'El grupo ya tiene una clase asignada en este bloque horario';
         }
 
         // Verificar docente disponible
@@ -341,8 +349,13 @@ class HorarioService
             $docenteOcupado = HorarioAsignado::where('docente_id', $docenteId)
                 ->where('bloque_horario_id', $bloqueId)
                 ->where('periodo_academico_id', $periodoId)
-                ->where('grupo_id', '!=', $grupoId)
-                ->first();
+                ->where('grupo_id', '!=', $grupoId);
+            
+            if ($horarioActualId) {
+                $docenteOcupado = $docenteOcupado->where('id', '!=', $horarioActualId);
+            }
+            
+            $docenteOcupado = $docenteOcupado->first();
 
             if ($docenteOcupado) {
                 $conflictos[] = 'El docente ya tiene una clase asignada en este bloque horario';
@@ -357,46 +370,32 @@ class HorarioService
                 'aulaId' => $aulaId,
                 'bloqueId' => $bloqueId,
                 'periodoId' => $periodoId,
-                'docenteId' => $docenteId
+                'docenteId' => $docenteId,
+                'horarioActualId' => $horarioActualId
             ]
         ];
     }
 
-    /**
-     * Obtener tipos de aula disponibles
-     */
     public function obtenerTiposAula(): array
     {
         return $this->tiposAulaPermitidos;
     }
 
-    /**
-     * Obtener modalidades de clase disponibles
-     */
     public function obtenerModalidadesClase(): array
     {
         return $this->modalidadesClase;
     }
 
-    /**
-     * Obtener métodos de registro de asistencia disponibles
-     */
     public function obtenerMetodosAsistencia(): array
     {
         return $this->metodosAsistencia;
     }
 
-    /**
-     * Validar que la modalidad es válida
-     */
     public function esModalidadValida(string $modalidad): bool
     {
         return array_key_exists($modalidad, $this->modalidadesClase);
     }
 
-    /**
-     * Validar que el método de asistencia es válido
-     */
     public function esMetodoAsistenciaValido(string $metodo): bool
     {
         return array_key_exists($metodo, $this->metodosAsistencia);

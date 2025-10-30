@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Grupo;
+use App\Models\HorarioAsignado;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ class GrupoController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $grupos = Grupo::paginate(15);
+            $grupos = Grupo::with(['materia', 'periodo'])->paginate(15);
             return response()->json([
                 'success' => true,
                 'data' => $grupos,
@@ -32,24 +33,44 @@ class GrupoController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo' => 'required|string|max:50|unique:grupo,codigo',
-                'nombre' => 'nullable|string|max:255',
+                'materia_id' => 'required|exists:materia,id',
+                'periodo_id' => 'required|exists:periodo_academico,id',
+                'codigo' => 'required|string|max:50',
                 'cantidad_maxima' => 'required|integer|min:1|max:100',
             ], [
                 'codigo.required' => 'El código es requerido',
-                'codigo.unique' => 'Este código ya existe',
                 'cantidad_maxima.required' => 'La cantidad máxima es requerida',
+                'materia_id.exists' => 'La materia no existe',
+                'periodo_id.exists' => 'El período no existe',
             ]);
 
             DB::beginTransaction();
 
-            $grupo = Grupo::create($validated);
+            // Validar combinación única
+            $existe = Grupo::where('materia_id', $validated['materia_id'])
+                ->where('periodo_academico_id', $validated['periodo_id'])
+                ->where('codigo_grupo', $validated['codigo'])
+                ->first();
+
+            if ($existe) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya existe un grupo con esta combinación materia-período-código'
+                ], 409);
+            }
+
+            $grupo = Grupo::create([
+                'materia_id' => $validated['materia_id'],
+                'periodo_academico_id' => $validated['periodo_id'],
+                'codigo_grupo' => $validated['codigo'],
+                'cupo_maximo' => $validated['cantidad_maxima'],
+            ]);
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'data' => $grupo,
+                'data' => $grupo->load(['materia', 'periodo']),
                 'message' => 'Grupo creado exitosamente'
             ], 201);
         } catch (\Exception $e) {
@@ -65,6 +86,7 @@ class GrupoController extends Controller
     public function show(Grupo $grupo): JsonResponse
     {
         try {
+            $grupo->load(['materia', 'periodo']);
             return response()->json([
                 'success' => true,
                 'data' => $grupo,
@@ -83,20 +105,22 @@ class GrupoController extends Controller
     {
         try {
             $validated = $request->validate([
-                'codigo' => 'sometimes|string|max:50|unique:grupo,codigo,' . $grupo->id,
-                'nombre' => 'nullable|string|max:255',
+                'codigo' => 'sometimes|string|max:50',
                 'cantidad_maxima' => 'sometimes|integer|min:1|max:100',
             ]);
 
             DB::beginTransaction();
 
-            $grupo->update($validated);
+            $grupo->update(array_filter([
+                'codigo_grupo' => $validated['codigo'] ?? null,
+                'cupo_maximo' => $validated['cantidad_maxima'] ?? null,
+            ], fn($val) => $val !== null));
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'data' => $grupo->fresh(),
+                'data' => $grupo->fresh()->load(['materia', 'periodo']),
                 'message' => 'Grupo actualizado exitosamente'
             ], 200);
         } catch (\Exception $e) {
@@ -112,6 +136,14 @@ class GrupoController extends Controller
     public function destroy(Grupo $grupo): JsonResponse
     {
         try {
+            // ✅ CORRECCIÓN: Validar que NO tenga horarios asignados
+            if (HorarioAsignado::where('grupo_id', $grupo->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar un grupo que tiene horarios asignados'
+                ], 422);
+            }
+
             DB::beginTransaction();
             $grupo->delete();
             DB::commit();

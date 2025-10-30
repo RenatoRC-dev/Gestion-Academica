@@ -19,4 +19,9 @@ class Aula extends Model
     {
         return $this->hasMany(HorarioAsignado::class, 'aula_id');
     }
+
+    public function tipoAula()
+    {
+        return $this->belongsTo(\App\Models\TipoAula::class, 'tipo_aula_id');
+    }
 }

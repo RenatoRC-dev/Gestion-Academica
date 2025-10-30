@@ -11,126 +11,91 @@ class RecordarAuditoria
 {
     /**
      * Handle an incoming request.
-     *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
 
-        // Solo registrar cambios en métodos que modifiquen datos
-        if (in_array($request->getMethod(), ['POST', 'PUT', 'PATCH', 'DELETE'])) {
-            $this->registrarAuditoria($request, $response);
+        // Solo registrar en bitácora operaciones que modifiquen datos
+        if ($this->debeRegistrarse($request)) {
+            $this->registrarEnBitacora($request, $response);
         }
 
         return $response;
     }
 
     /**
-     * Registrar cambio en bitácora
+     * Determinar si la operación debe registrarse en bitácora
      */
-    private function registrarAuditoria(Request $request, Response $response): void
+    private function debeRegistrarse(Request $request): bool
+    {
+        // Registrar POST, PUT, DELETE
+        return in_array($request->getMethod(), ['POST', 'PUT', 'DELETE']);
+    }
+
+    /**
+     * Registrar la operación en la tabla bitacora
+     */
+    private function registrarEnBitacora(Request $request, Response $response): void
     {
         try {
             $usuario = auth()->user();
-            $usuarioId = $usuario?->id;
-            $accion = $this->obtenerAccion($request->getMethod());
-            $tabla = $this->obtenerTabla($request->path());
+            $usuarioId = $usuario ? $usuario->id : null;
 
-            // Solo registrar si detecta una tabla válida
-            if (!$tabla) {
-                return;
-            }
+            // Determinar tabla afectada del endpoint
+            $path = $request->getPathInfo();
+            $tablaAfectada = $this->extraerTabla($path);
+            $registroId = $this->extraerRegistroId($path);
 
-            // Intentar obtener ID del recurso
-            $registroId = $this->obtenerRegistroId($request);
+            // Obtener datos del request
+            $datosNuevos = $request->getMethod() !== 'DELETE' ? $request->all() : null;
 
             Bitacora::create([
-                'fecha_hora' => now(),
                 'usuario_id' => $usuarioId,
-                'accion' => $accion,
-                'tabla_afectada' => $tabla,
+                'accion' => $request->getMethod(), // POST, PUT, DELETE
+                'tabla_afectada' => $tablaAfectada,
                 'registro_id' => $registroId,
-                'datos_nuevos' => json_encode($request->except(['password', 'password_confirmation'])),
+                'datos_anteriores' => null, // Podría implementarse comparación
+                'datos_nuevos' => $datosNuevos ? json_encode($datosNuevos) : null,
                 'direccion_ip' => $request->ip(),
-                'descripcion' => $this->generarDescripcion($accion, $tabla, $registroId)
+                'descripcion' => $this->generarDescripcion($request, $response),
             ]);
         } catch (\Exception $e) {
-            // Silenciosamente fallar si hay error en auditoría
-            \Log::debug('Error en auditoría: ' . $e->getMessage());
+            // Registrar errores pero no afectar la respuesta al cliente
+            \Log::error('Error registrando en bitácora: ' . $e->getMessage());
         }
     }
 
     /**
-     * Obtener el tipo de acción del método HTTP
+     * Extraer tabla afectada del path
      */
-    private function obtenerAccion(string $metodo): string
+    private function extraerTabla(string $path): ?string
     {
-        return match ($metodo) {
-            'POST' => 'CREAR',
-            'PUT', 'PATCH' => 'ACTUALIZAR',
-            'DELETE' => 'ELIMINAR',
-            default => 'MODIFICAR'
-        };
+        // /api/docentes => docentes
+        // /api/horarios/generar => horarios
+        preg_match('/\/api\/([a-z-]+)/', $path, $matches);
+        return $matches[1] ?? null;
     }
 
     /**
-     * Extraer nombre de tabla del path
+     * Extraer ID del registro del path
      */
-    private function obtenerTabla(string $path): ?string
+    private function extraerRegistroId(string $path): ?int
     {
-        // Extractar la parte después de /api/
-        $partes = explode('/', trim($path, '/'));
-        
-        if (count($partes) < 2) {
-            return null;
-        }
-
-        $recurso = $partes[1];
-
-        // Mapeo de recursos a tablas
-        $mapeo = [
-            'docentes' => 'docente',
-            'materias' => 'materia',
-            'aulas' => 'aula',
-            'grupos' => 'grupo',
-            'periodos' => 'periodo_academico',
-            'bloques-horarios' => 'bloque_horario',
-            'roles' => 'rol',
-            'usuarios' => 'usuario',
-            'horarios' => 'horario_asignado',
-            'asistencias' => 'asistencia',
-        ];
-
-        return $mapeo[$recurso] ?? null;
+        // /api/docentes/5 => 5
+        preg_match('/\/(\d+)/', $path, $matches);
+        return isset($matches[1]) ? (int)$matches[1] : null;
     }
 
     /**
-     * Obtener ID del registro de la ruta
+     * Generar descripción de la acción
      */
-    private function obtenerRegistroId(Request $request): ?int
+    private function generarDescripcion(Request $request, Response $response): string
     {
-        $partes = explode('/', trim($request->path(), '/'));
-        
-        // El ID generalmente es el tercer segmento (después de /api/recurso/)
-        if (count($partes) >= 3 && is_numeric($partes[2])) {
-            return (int) $partes[2];
-        }
+        $metodo = $request->getMethod();
+        $path = $request->getPathInfo();
+        $codigo = $response->getStatusCode();
 
-        return null;
-    }
-
-    /**
-     * Generar descripción de auditoría
-     */
-    private function generarDescripcion(string $accion, string $tabla, ?int $registroId): string
-    {
-        $desc = ucfirst(strtolower($accion)) . " en tabla: $tabla";
-        
-        if ($registroId) {
-            $desc .= " (ID: $registroId)";
-        }
-
-        return $desc;
+        return "{$metodo} {$path} - HTTP {$codigo}";
     }
 }
