@@ -79,7 +79,9 @@ export default function LoginPage() {
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              alert('Si olvidaste tu contraseña, contacta al administrador para reinicio o utiliza el flujo de restablecimiento cuando esté habilitado.');
+              alert(
+                'Si olvidaste tu contraseña, contacta al administrador para reiniciarla o utiliza el flujo de restablecimiento cuando esté habilitado.'
+              );
             }}
           >
             Olvidé mi contraseña

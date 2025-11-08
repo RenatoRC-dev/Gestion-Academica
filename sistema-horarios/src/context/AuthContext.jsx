@@ -16,12 +16,18 @@ export function AuthProvider({ children }) {
     let active = true;
     const boot = async () => {
       try {
-        if (token && !user) {
+        // Política simple y robusta:
+        // Si hay token, SIEMPRE consolidar el usuario desde /user al iniciar.
+        if (token) {
           const me = await authService.getCurrentUser();
           if (active && me.success && me.user) {
             setUser(me.user);
             localStorage.setItem('user', JSON.stringify(me.user));
           }
+        } else {
+          // Sin token, limpiar cualquier rastro y quedar sin sesión
+          setUser(null);
+          localStorage.removeItem('user');
         }
       } finally {
         if (active) setLoading(false);
@@ -29,7 +35,7 @@ export function AuthProvider({ children }) {
     };
     boot();
     return () => { active = false; };
-  }, []);
+  }, [token]);
 
   const login = async (email, password) => {
     setLoading(true);
@@ -75,4 +81,3 @@ export function AuthProvider({ children }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
-

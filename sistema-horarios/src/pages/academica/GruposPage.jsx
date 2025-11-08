@@ -1,9 +1,8 @@
 ﻿// src/pages/GruposPage.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import Modal from '../../components/Modal.jsx';
 import { useToast } from '../../components/ToastProvider.jsx';
-import PageHeader from '../../components/PageHeader.jsx';
 import EmptyState from '../../components/EmptyState.jsx';
 import Loader from '../../components/Loader.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
@@ -43,7 +42,7 @@ function GruposPage() {
     const [form, setForm] = useState({ materia_id: '', periodo_id: '', codigo: '', cantidad_maxima: 1 });
 
     useEffect(() => { dispatch(fetchGrupos({ page })); }, [dispatch, page]);
-    // Asegurar catÃ¡logos para selects
+    // Asegurar catálogos para selects
     useEffect(() => {
         if (!materias?.length) dispatch(fetchMaterias({ page: 1 }));
         if (!periodos?.length) dispatch(fetchPeriodos({ page: 1 }));
@@ -82,7 +81,7 @@ function GruposPage() {
     const onSubmit = async (e) => {
         e?.preventDefault?.();
         if (!form.materia_id || !form.periodo_id || !form.codigo.trim()) {
-            toast.push('Materia, perÃ­odo y cÃ³digo son obligatorios', 'error');
+            toast.push('Materia, período y código son obligatorios', 'error');
             return;
         }
         try {
@@ -99,7 +98,7 @@ function GruposPage() {
     };
 
     const onDelete = async (row) => {
-        if (!confirm(`Â¿Eliminar el grupo "${row?.codigo_grupo ?? row.id}"?`)) return;
+        if (!confirm(`¿Eliminar el grupo "${row?.codigo_grupo ?? row.id}"?`)) return;
         try {
             await dispatch(deleteGrupo(row.id)).unwrap();
             toast.push('Grupo eliminado', 'success');
@@ -109,12 +108,12 @@ function GruposPage() {
 
     const Paginador = () => (
         <div className="flex items-center justify-between mt-4 text-sm">
-            <div>Mostrando {filtered.length} / {meta.total} (pÃ¡gina {meta.current_page} de {meta.last_page})</div>
+            <div>Mostrando {filtered.length} / {meta.total} (página {meta.current_page} de {meta.last_page})</div>
             <div className="space-x-2">
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>Â« Primera</button>
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>â€¹ Anterior</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}>Siguiente â€º</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(meta.last_page)}>Ãšltima Â»</button>
+                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>« Primera</button>
+                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ Anterior</button>
+                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}>Siguiente ›</button>
+                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(meta.last_page)}>Última »</button>
             </div>
         </div>
     );
@@ -134,44 +133,44 @@ function GruposPage() {
 
     return (
         <div className="space-y-6">
-            <PageHeader title="Grupos" subtitle="Gestión de grupos por materia y período">
-                <button className="btn-primary" onClick={openCreate}>+ Nuevo Grupo</button>
-            </PageHeader>
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">ðŸ‘¥ Grupos</h1>
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">👥 Grupos</h1>
+                    <p className="mt-1 text-sm text-gray-500">Gestión de grupos por materia y período</p>
+                </div>
                 <button className="btn-primary" onClick={openCreate}>+ Nuevo Grupo</button>
             </div>
 
             <div className="card">
                 <div className="flex items-center justify-between">
-                    <input className="input max-w-sm" placeholder="Buscarâ€¦" value={q} onChange={(e) => setQ(e.target.value)} />
-                    <span className="text-sm text-gray-500">PaginaciÃ³n del servidor</span>
+                    <input className="input max-w-sm" placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
+                    <span className="text-sm text-gray-500">Paginación del servidor</span>
                 </div>
 
                 {error && <div className="bg-red-50 text-red-700 text-sm p-2 rounded mt-4">{error}</div>}
 
                 {loading ? (
-                    <div className="py-10 text-center"><Loader />€¦</div>
+                    <div className="py-10 text-center"><Loader /></div>
                 ) : filtered.length === 0 ? (
                     <div className="py-10 text-center"><EmptyState title="Aún no hay grupos" message="Crea un grupo para comenzar" /></div>
                 ) : (
                     <div className="mt-4 divide-y rounded border bg-white">
                         <div className="grid grid-cols-12 px-3 py-2 text-xs font-semibold text-gray-600">
                             <div className="col-span-1">ID</div>
-                            <div className="col-span-3">CÃ³digo</div>
+                            <div className="col-span-3">Código</div>
                             <div className="col-span-4">Materia</div>
-                            <div className="col-span-2">PerÃ­odo</div>
+                            <div className="col-span-2">Período</div>
                             <div className="col-span-2 text-right">Acciones</div>
                         </div>
                         {filtered.map((it) => (
                             <div key={it.id} className="grid grid-cols-12 items-center px-3 py-2 text-sm">
                                 <div className="col-span-1">#{it.id}</div>
-                                <div className="col-span-3">{it.codigo_grupo ?? 'â€”'}</div>
-                                <div className="col-span-4 truncate">{it?.materia?.nombre ?? 'â€”'}</div>
-                                <div className="col-span-2">{it?.periodo?.nombre ?? 'â€”'}</div>
+                                <div className="col-span-3">{it.codigo_grupo ?? '—'}</div>
+                                <div className="col-span-4 truncate">{it?.materia?.nombre ?? '—'}</div>
+                                <div className="col-span-2">{it?.periodo?.nombre ?? '—'}</div>
                                 <div className="col-span-2 text-right space-x-2">
                                     <button className="btn-secondary" onClick={() => openEdit(it)}>Editar</button>
-                                    <button className="btn-danger" onClick={() => onAskDelete(it)}>Eliminar</button>
+                                    <button className="btn-danger" onClick={() => onDelete(it)}>Eliminar</button>
                                 </div>
                             </div>
                         ))}
@@ -188,7 +187,7 @@ function GruposPage() {
                 footer={
                     <>
                         <button className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>Cancelar</button>
-                        <button className="btn-primary" onClick={onSubmit} disabled={saving}>{saving ? 'Guardandoâ€¦' : 'Guardar'}</button>
+                        <button className="btn-primary" onClick={onSubmit} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button>
                     </>
                 }
             >
@@ -197,14 +196,14 @@ function GruposPage() {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Materia *</label>
                             <select className="input" value={form.materia_id} onChange={(e) => setForm((f) => ({ ...f, materia_id: Number(e.target.value || 0) }))} required>
-                                <option value="">â€” Seleccione â€”</option>
+                                <option value="">— Seleccione —</option>
                                 {materias.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">PerÃ­odo *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Período *</label>
                             <select className="input" value={form.periodo_id} onChange={(e) => setForm((f) => ({ ...f, periodo_id: Number(e.target.value || 0) }))} required>
-                                <option value="">â€” Seleccione â€”</option>
+                                <option value="">— Seleccione —</option>
                                 {periodos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                             </select>
                         </div>
@@ -212,15 +211,16 @@ function GruposPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">CÃ³digo *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
                             <input className="input" value={form.codigo} onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))} required />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Cupo mÃ¡ximo *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Cupo máximo *</label>
                             <input type="number" min={1} max={100} className="input" value={form.cantidad_maxima} onChange={(e) => setForm((f) => ({ ...f, cantidad_maxima: Number(e.target.value || 1) }))} required />
                         </div>
                     </div>
 
+                    {/* Mensajes de validación del backend (422) */}
                     {saveError?.errors && <Errors errors={saveError.errors} />}
                 </form>
             </Modal>

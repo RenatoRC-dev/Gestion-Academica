@@ -10,10 +10,30 @@ use Illuminate\Support\Facades\DB;
 
 class BitacoraController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         try {
-            $bitacoras = Bitacora::paginate(15);
+            $q = Bitacora::with('usuario');
+
+            if ($request->filled('usuario_id')) {
+                $q->where('usuario_id', (int) $request->query('usuario_id'));
+            }
+            if ($request->filled('accion')) {
+                $q->where('accion', $request->query('accion'));
+            }
+            if ($request->filled('tabla')) {
+                $q->where('tabla_afectada', $request->query('tabla'));
+            }
+            if ($request->filled('desde')) {
+                $q->where('fecha_hora', '>=', $request->query('desde'));
+            }
+            if ($request->filled('hasta')) {
+                $q->where('fecha_hora', '<=', $request->query('hasta'));
+            }
+
+            $perPage = (int) ($request->query('per_page', 15));
+            $bitacoras = $q->orderByDesc('fecha_hora')->paginate($perPage);
+
             return response()->json([
                 'success' => true,
                 'data' => $bitacoras,

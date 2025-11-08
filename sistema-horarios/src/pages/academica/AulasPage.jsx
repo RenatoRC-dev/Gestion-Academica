@@ -118,7 +118,10 @@ function AulasPage() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">🏫 Aulas</h1>
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">🏫 Aulas</h1>
+                    <p className="mt-1 text-sm text-gray-500">Gestión de aulas y espacios físicos</p>
+                </div>
                 <button className="btn-primary" onClick={openCreate}>+ Nueva Aula</button>
             </div>
 
@@ -131,9 +134,9 @@ function AulasPage() {
                 {error && <div className="bg-red-50 text-red-700 text-sm p-2 rounded mt-4">{error}</div>}
 
                 {loading ? (
-                    <div className="py-10 text-center">Cargando…</div>
+                    <div className="py-10 text-center"><Loader /></div>
                 ) : filtered.length === 0 ? (
-                    <div className="py-10 text-center text-gray-600">Sin registros</div>
+                    <div className="py-10 text-center"><EmptyState title="Aún no hay aulas" message="Crea la primera aula para comenzar" /></div>
                 ) : (
                     <div className="mt-4 divide-y rounded border bg-white">
                         <div className="grid grid-cols-12 px-3 py-2 text-xs font-semibold text-gray-600">
@@ -193,11 +196,8 @@ function AulasPage() {
                             <input type="number" min={0} className="input" value={form.piso} onChange={(e) => setForm((f) => ({ ...f, piso: Number(e.target.value || 1) }))} />
                         </div>
                     </div>
-                    {saveError?.errors && (
-                        <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded">
-                            {Object.entries(saveError.errors).map(([k, v]) => (<div key={k}><strong>{k}:</strong> {Array.isArray(v) ? v.join(', ') : String(v)}</div>))}
-                        </div>
-                    )}
+
+                    {/* Mensajes de validación del backend (422) */}
                     <Errors422 errors={saveError?.errors} />
                 </form>
             </Modal>

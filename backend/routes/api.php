@@ -14,11 +14,12 @@ use App\Http\Controllers\Api\RolController;
 use App\Http\Controllers\Api\UsuarioController;
 use App\Http\Controllers\Api\UsuarioRolController;
 use App\Http\Controllers\Api\BitacoraController;
+use App\Http\Controllers\Api\DiaController;
+use App\Http\Controllers\Api\HorarioFranjaController;
 
 // Rutas públicas
 // Corrección: Rate limiting contra fuerza bruta (5 intentos por minuto)
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
-Route::post('/register', [UsuarioController::class, 'store'])->middleware('throttle:5,1');
 
 
 // Rutas protegidas (requieren token)
@@ -35,6 +36,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('grupos', GrupoController::class);
     Route::apiResource('periodos', PeriodoController::class);
     Route::apiResource('bloques-horarios', BloqueHorarioController::class);
+
+    // Catálogos para bloques horarios
+    Route::get('/dias', [DiaController::class, 'index']);
+    Route::get('/horarios-franja', [HorarioFranjaController::class, 'index']);
 
     // Roles y Usuarios
     Route::apiResource('usuarios', UsuarioController::class);
@@ -65,11 +70,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/confirmar-virtual', [AsistenciaController::class, 'confirmarVirtual']);
     });
 
-    // BitÃ¡cora - CU27
+    // Bitácora - CU27
     Route::get('/bitacora', [BitacoraController::class, 'index']);
     Route::get('/bitacora/{bitacora}', [BitacoraController::class, 'show']);
 
-    // MÃ©tricas del sistema
+    // Métricas del sistema
     Route::get('/metricas', [App\Http\Controllers\Api\MetricasController::class, 'obtenerMetricasGenerales']);
 });
 
@@ -78,3 +83,5 @@ Route::fallback(function () {
 });
 
 
+    // Registro de usuarios solo para cuentas autenticadas (verifica rol en controller)
+    Route::post('/register', [UsuarioController::class, 'store'])->middleware('throttle:5,1');

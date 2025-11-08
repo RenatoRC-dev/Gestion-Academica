@@ -88,7 +88,7 @@ function MateriasPage() {
     const onSubmit = async (e) => {
         e.preventDefault();
         if (!form.nombre.trim() || !form.codigo.trim()) {
-            toast.push('Nombre y cÃ³digo son obligatorios', 'error');
+            toast.push('Nombre y código son obligatorios', 'error');
             return;
         }
         try {
@@ -107,7 +107,7 @@ function MateriasPage() {
     };
 
     const onDelete = async (row) => {
-        if (!confirm(`Â¿Eliminar la materia "${row?.nombre ?? row?.codigo_materia ?? row.id}"?`)) return;
+        if (!confirm(`¿Eliminar la materia "${row?.nombre ?? row?.codigo_materia ?? row.id}"?`)) return;
         try {
             await dispatch(deleteMateria(row.id)).unwrap();
             toast.push('Materia eliminada', 'success');
@@ -119,12 +119,12 @@ function MateriasPage() {
 
     const Paginador = () => (
         <div className="flex items-center justify-between mt-4 text-sm">
-            <div>Mostrando {filtered.length} / {meta.total} (pÃ¡gina {meta.current_page} de {meta.last_page})</div>
+            <div>Mostrando {filtered.length} / {meta.total} (página {meta.current_page} de {meta.last_page})</div>
             <div className="space-x-2">
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>Â« Primera</button>
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>â€¹ Anterior</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}>Siguiente â€º</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(meta.last_page)}>Ãšltima Â»</button>
+                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>« Primera</button>
+                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ Anterior</button>
+                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}>Siguiente ›</button>
+                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(meta.last_page)}>Última »</button>
             </div>
         </div>
     );
@@ -145,22 +145,22 @@ function MateriasPage() {
     };
 
     return (
-        <div className="space-y-6">`n            <PageHeader title="Materias" subtitle="Gestión de materias del plan académico">`n                <button className="btn-primary" onClick={openCreate}>+ Nueva Materia</button>`n            </PageHeader>
+        <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">ðŸ“š Materias</h1>
+                <h1 className="text-3xl font-bold text-gray-900">📚 Materias</h1>
                 <button className="btn-primary" onClick={openCreate}>+ Nueva Materia</button>
             </div>
 
             <div className="card">
                 <div className="flex items-center justify-between">
-                    <input className="input max-w-sm" placeholder="Buscarâ€¦" value={q} onChange={(e) => setQ(e.target.value)} />
-                    <span className="text-sm text-gray-500">PaginaciÃ³n del servidor</span>
+                    <input className="input max-w-sm" placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
+                    <span className="text-sm text-gray-500">Paginación del servidor</span>
                 </div>
 
                 {error && <div className="bg-red-50 text-red-700 text-sm p-2 rounded mt-4">{error}</div>}
 
                 {loading ? (
-                    <div className="py-10 text-center"><Loader />â€¦</div>
+                    <div className="py-10 text-center"><Loader /></div>
                 ) : filtered.length === 0 ? (
                     <div className="py-10 text-center"><EmptyState title="Aún no hay materias" message="Crea la primera materia para comenzar" /></div>
                 ) : (
@@ -168,21 +168,21 @@ function MateriasPage() {
                         <div className="grid grid-cols-12 px-3 py-2 text-xs font-semibold text-gray-600">
                             <div className="col-span-1">ID</div>
                             <div className="col-span-3">Nombre</div>
-                            <div className="col-span-3">CÃ³digo</div>
-                            <div className="col-span-2">CrÃ©ditos</div>
+                            <div className="col-span-3">Código</div>
+                            <div className="col-span-2">Créditos</div>
                             <div className="col-span-1">Horas T.</div>
                             <div className="col-span-2 text-right">Acciones</div>
                         </div>
                         {filtered.map((it) => (
                             <div key={it.id} className="grid grid-cols-12 items-center px-3 py-2 text-sm">
                                 <div className="col-span-1">#{it.id}</div>
-                                <div className="col-span-3">{it.nombre ?? 'â€”'}</div>
-                                <div className="col-span-3">{it.codigo_materia ?? 'â€”'}</div>
-                                <div className="col-span-2">{it.creditos ?? 'â€”'}</div>
+                                <div className="col-span-3">{it.nombre ?? '—'}</div>
+                                <div className="col-span-3">{it.codigo_materia ?? '—'}</div>
+                                <div className="col-span-2">{it.creditos ?? '—'}</div>
                                 <div className="col-span-1">{it.horas_teoricas ?? 0}</div>
                                 <div className="col-span-2 text-right space-x-2">
                                     <button className="btn-secondary" onClick={() => openEdit(it)}>Editar</button>
-                                    <button className="btn-danger" onClick={() => onAskDelete(it)}>Eliminar</button>
+                                    <button className="btn-danger" onClick={() => onDelete(it)}>Eliminar</button>
                                 </div>
                             </div>
                         ))}
@@ -200,7 +200,7 @@ function MateriasPage() {
                     <>
                         <button className="btn-secondary" onClick={() => setOpenForm(false)} disabled={saving}>Cancelar</button>
                         <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-                            {saving ? 'Guardandoâ€¦' : 'Guardar'}
+                            {saving ? 'Guardando…' : 'Guardar'}
                         </button>
                     </>
                 }
@@ -208,7 +208,7 @@ function MateriasPage() {
                 <form onSubmit={onSubmit} className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">CÃ³digo *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
                             <input
                                 className="input"
                                 value={form.codigo}
@@ -223,7 +223,7 @@ function MateriasPage() {
                                 className="input"
                                 value={form.nombre}
                                 onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                                placeholder="p.ej. IntroducciÃ³n a la InformÃ¡tica"
+                                placeholder="p.ej. Introducción a la Informática"
                                 required
                             />
                         </div>
@@ -231,7 +231,7 @@ function MateriasPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">CrÃ©ditos *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Créditos *</label>
                             <input
                                 type="number"
                                 min={1}
@@ -243,7 +243,7 @@ function MateriasPage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Horas teÃ³ricas</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Horas teóricas</label>
                             <input
                                 type="number"
                                 min={0}
@@ -254,7 +254,7 @@ function MateriasPage() {
                         </div>
                     </div>
 
-                    {/* Mensajes de validaciÃ³n del backend (422) */}
+                    {/* Mensajes de validación del backend (422) */}
                     <Errors422 errors={saveError?.errors} />
                 </form>
             </Modal>

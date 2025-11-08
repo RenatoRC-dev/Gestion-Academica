@@ -5,17 +5,22 @@ import api from '../../services/api.js';
 // LIST
 export const fetchBitacora = createAsyncThunk('bitacora/fetch', async ({ page = 1 } = {}, { rejectWithValue }) => {
     try {
-        const resp = await api.get('/bitacora', { params: { page } });
-        const p = resp?.data?.data ?? {};
-        const rows = Array.isArray(p?.data) ? p.data : [];
+        const resp = await api.get('/bitacora', { params: { page, per_page: 15 } });
+
+        // La respuesta viene como: { success: true, data: { data: [], current_page, last_page, total, per_page } }
+        const paginatedData = resp?.data?.data ?? {};
+        const rows = Array.isArray(paginatedData?.data) ? paginatedData.data : (Array.isArray(paginatedData) ? paginatedData : []);
+
         const meta = {
-            current_page: p?.current_page ?? 1,
-            last_page: p?.last_page ?? 1,
-            total: p?.total ?? rows.length,
-            per_page: (p?.per_page ?? rows.length) || 15,
+            current_page: paginatedData?.current_page ?? 1,
+            last_page: paginatedData?.last_page ?? 1,
+            total: paginatedData?.total ?? rows.length,
+            per_page: paginatedData?.per_page ?? 15,
         };
+
         return { rows, meta, page };
     } catch (e) {
+        console.error('Error fetching bitacora:', e);
         return rejectWithValue(e?.response?.data?.message || e.message);
     }
 });

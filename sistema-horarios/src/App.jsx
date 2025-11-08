@@ -1,6 +1,7 @@
 ﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import ProtectedRoute from './routes/ProtectedRoute.jsx';
+import { ROLES } from './utils/roles.js';
 import AppShell from './components/AppShell.jsx';
 
 // Páginas
@@ -20,6 +21,7 @@ import DocentesPage from './pages/academica/DocentesPage.jsx';
 import AulasPage from './pages/academica/AulasPage.jsx';
 import MateriasPage from './pages/academica/MateriasPage.jsx';
 import GruposPage from './pages/academica/GruposPage.jsx';
+import BloquesPage from './pages/academica/BloquesPage.jsx';
 
 // Páginas de Horarios
 import VisualizarHorarioPage from './pages/horarios/VisualizarHorarioPage.jsx';
@@ -61,7 +63,7 @@ function AuthContent() {
         <>
             <AppShell>
                 <Routes>
-                    {/* Rutas p�blicas de auth */}
+                    {/* Rutas públicas de auth */}
                     <Route
                         path="/login"
                         element={
@@ -94,18 +96,19 @@ function AuthContent() {
                         <Route path="/asistencias/confirmar-virtual" element={<ConfirmarAsistenciaPage />} />
                     </Route>
 
-                    {/* Rutas de Administraci�n */}
-                    <Route element={<ProtectedRoute />}>
+                    {/* Rutas de Administración */}
+                    <Route element={<ProtectedRoute requireRoles={[ROLES.ADMIN]} />}>
                         <Route path="/usuarios" element={<UsuariosPage />} />
                         <Route path="/roles" element={<RolesPage />} />
                         <Route path="/bitacora" element={<BitacoraPage />} />
 
-                        {/* Rutas de Gesti�n Acad�mica */}
+                        {/* Rutas de Gestión Académica */}
                         <Route path="/periodos" element={<PeriodosPage />} />
                         <Route path="/docentes" element={<DocentesPage />} />
                         <Route path="/aulas" element={<AulasPage />} />
                         <Route path="/materias" element={<MateriasPage />} />
                         <Route path="/grupos" element={<GruposPage />} />
+                        <Route path="/bloques" element={<BloquesPage />} />
                         <Route path="/horarios/generar" element={<GenerarHorarioPage />} />
                     </Route>
 

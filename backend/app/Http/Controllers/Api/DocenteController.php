@@ -163,6 +163,16 @@ class DocenteController extends Controller
     public function destroy(Docente $docente): JsonResponse
     {
         try {
+            // Validar que no tenga horarios asignados activos
+            $tieneHorarios = \App\Models\HorarioAsignado::where('docente_id', $docente->persona_id)->exists();
+
+            if ($tieneHorarios) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar el docente porque tiene horarios asignados'
+                ], 409);
+            }
+
             DB::beginTransaction();
 
             $usuarioId = $docente->persona->usuario_id;

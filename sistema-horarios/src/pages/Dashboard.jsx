@@ -50,7 +50,7 @@ export default function Dashboard() {
         fetchMetricas();
     }, []);
 
-    const roles = (user?.roles || []).map(r => r.nombre?.toLowerCase());
+    const roles = (user?.roles || []).map(r => typeof r === 'string' ? r.toLowerCase() : r.nombre?.toLowerCase());
     const isAdmin = roles.includes(ROLES.ADMIN);
 
     const handleRetry = () => {

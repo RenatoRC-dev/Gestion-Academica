@@ -15,41 +15,43 @@ export default function ProtectedRoute({ requireRoles }) {
     const { user, loading } = useAuth();
     const location = useLocation();
 
-    // Mostrar pantalla de carga mientras se verifica la sesión
-    if (loading) {
-        return <div>Cargando...</div>;
-    }
+    if (loading) return <div>Cargando...</div>;
 
-    // No hay sesión iniciada
     if (!user) {
         return <Navigate to="/login" replace state={{ from: location }} />;
     }
 
-    // TEMP: permitir acceso a todos los usuarios autenticados
+    if (Array.isArray(requireRoles) && requireRoles.length > 0) {
+        // Normalizar roles desde contexto o, si vienen vacíos, intentar desde localStorage
+        let rolesArray = Array.isArray(user.roles) ? user.roles : [];
+        if (rolesArray.length === 0) {
+            try {
+                const cached = JSON.parse(localStorage.getItem('user'));
+                if (cached && Array.isArray(cached.roles)) rolesArray = cached.roles;
+            } catch {}
+        }
 
-    // Comentar la validación de roles para pruebas
-    // if (Array.isArray(requireRoles) && requireRoles.length > 0) {
-    //     const userRoles = (user.roles || []).map(r => r.nombre?.toLowerCase());
-    //     const requiredRoles = requireRoles.map(roleName => roleName.toLowerCase());
-    //     const hasRequiredRole = requiredRoles.some(role => userRoles.includes(role));
+        const userRoles = rolesArray.map(r =>
+            typeof r === 'string' ? r.toLowerCase() : r?.nombre?.toLowerCase()
+        );
+        const requiredRoles = requireRoles.map(roleName => roleName.toLowerCase());
+        // Si aún no hay roles disponibles, permitir acceso (evita bloqueo por estado desincronizado)
+        const hasRequiredRole = userRoles.length === 0
+            ? true
+            : requiredRoles.some(role => userRoles.includes(role));
 
-    //     if (!hasRequiredRole) {
-    //         return (
-    //             <Navigate
-    //                 to="/dashboard"
-    //                 replace
-    //                 state={{
-    //                     error: 'No tienes permisos para acceder a esta página',
-    //                     requiredRoles: requireRoles
-    //                 }}
-    //             />
-    //         );
-    //     }
-    // }
-
-    // Permitir acceso si hay un usuario autenticado
-    if (!user) {
-        return <Navigate to="/login" replace state={{ from: location }} />;
+        if (!hasRequiredRole) {
+            return (
+                <Navigate
+                    to="/dashboard"
+                    replace
+                    state={{
+                        error: 'No tienes permisos para acceder a esta página',
+                        requiredRoles: requireRoles
+                    }}
+                />
+            );
+        }
     }
 
     return <Outlet />;

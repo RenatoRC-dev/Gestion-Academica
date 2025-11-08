@@ -163,15 +163,16 @@ function DocentesPage() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">👨‍🏫 Docentes</h1>
-                <Can roles={['admin', 'coordinador']}>
-                    <button
-                        onClick={handleCreate}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        + Nuevo Docente
-                    </button>
-                </Can>
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">👨‍🏫 Docentes</h1>
+                    <p className="mt-1 text-sm text-gray-500">Gestión de docentes del sistema</p>
+                </div>
+                <button
+                    onClick={handleCreate}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium"
+                >
+                    + Nuevo Docente
+                </button>
             </div>
 
             {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
@@ -193,27 +194,25 @@ function DocentesPage() {
                 onSearchChange={setSearchTerm}
                 emptyMessage="No hay docentes registrados"
                 actions={(row) => (
-                    <Can roles={['admin', 'coordinador']}>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => handleEdit(row)}
-                                className="text-blue-600 hover:text-blue-800 font-medium text-sm"
-                            >
-                                Editar
-                            </button>
-                            <button
-                                onClick={() => handleDelete(row.persona_id)}
-                                className="text-red-600 hover:text-red-800 font-medium text-sm"
-                            >
-                                Eliminar
-                            </button>
-                        </div>
-                    </Can>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => handleEdit(row)}
+                            className="text-blue-600 hover:text-blue-900 font-medium"
+                        >
+                            Editar
+                        </button>
+                        <button
+                            onClick={() => handleDelete(row.persona_id)}
+                            className="text-red-600 hover:text-red-900 font-medium"
+                        >
+                            Eliminar
+                        </button>
+                    </div>
                 )}
             />
 
             <Modal
-                isOpen={modalOpen}
+                open={modalOpen}
                 onClose={() => setModalOpen(false)}
                 title={isEditing ? 'Editar Docente' : 'Nuevo Docente'}
             >

@@ -61,12 +61,12 @@ export default function BitacoraPage() {
                         </table>
 
                         <div className="flex items-center justify-between mt-4 text-sm">
-                            <div>Mostrando {filtered.length} / {meta.total} (página {meta.current_page} de {meta.last_page})</div>
+                            <div>Mostrando {filtered.length} / {meta?.total || 0} (página {meta?.current_page || 1} de {meta?.last_page || 1})</div>
                             <div className="space-x-2">
-                                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>« Primera</button>
-                                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ Anterior</button>
-                                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}>Siguiente ›</button>
-                                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(meta.last_page)}>Última »</button>
+                                <button className="btn-secondary" disabled={(meta?.current_page || 1) <= 1} onClick={() => setPage(1)}>« Primera</button>
+                                <button className="btn-secondary" disabled={(meta?.current_page || 1) <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ Anterior</button>
+                                <button className="btn-secondary" disabled={(meta?.current_page || 1) >= (meta?.last_page || 1)} onClick={() => setPage(p => Math.min(meta?.last_page || 1, p + 1))}>Siguiente ›</button>
+                                <button className="btn-secondary" disabled={(meta?.current_page || 1) >= (meta?.last_page || 1)} onClick={() => setPage(meta?.last_page || 1)}>Última »</button>
                             </div>
                         </div>
                     </div>

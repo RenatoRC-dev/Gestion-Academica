@@ -33,7 +33,8 @@ class AdminSeeder extends Seeder
         );
 
         // 3. Asignar rol admin
-        $rolAdmin = Rol::where('nombre', 'admin')->first();
+        // Asegurar rol correcto según RoleSeeder
+        $rolAdmin = Rol::where('nombre', 'administrador_academico')->first();
         if ($rolAdmin && !$usuario->roles->contains($rolAdmin)) {
             $usuario->roles()->attach($rolAdmin);
         }

@@ -1,0 +1,11 @@
+@"
+.env
+.env.*
+/vendor/
+/node_modules/
+/storage/*.key
+.git/
+/.idea/
+/.vscode/
+Dockerfile
+"@ | Set-Content -Encoding UTF8 .ebignore

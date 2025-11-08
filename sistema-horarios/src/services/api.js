@@ -1,30 +1,35 @@
+// src/services/api.js
 import axios from 'axios';
 
+// ===== Normalización de la base =====
 const RAW = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 const API_URL = RAW.replace(/\/+$/, '');
 
+// ===== Instancia Axios =====
 const api = axios.create({
-    baseURL: API_URL,
+    baseURL: API_URL, // p. ej.: http://ga-backend-prod.../api
     headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        Accept: 'application/json',
     },
     timeout: 20000,
 });
 
-// Interceptor de request para inyectar token
+// Helper para construir paths con 1 sola “/”
+export const apiUrl = (path) => `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
+
+// ===== Interceptores =====
+// Inyectar token
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
+        if (token) config.headers.Authorization = `Bearer ${token}`;
         return config;
     },
     (error) => Promise.reject(error)
 );
 
-// Interceptor de request para loguear solicitudes
+// Log de solicitudes (útil en dev)
 api.interceptors.request.use(
     (config) => {
         console.log('Solicitud:', config.method, config.url, config.params);
@@ -33,7 +38,7 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// Interceptor de response para manejar errores de autenticación
+// Manejo de respuestas y auth
 api.interceptors.response.use(
     (response) => {
         console.log('Respuesta:', response.status, response.config.url, response.data);
@@ -41,44 +46,41 @@ api.interceptors.response.use(
     },
     (error) => {
         const status = error.response?.status;
+        console.error('Error de solicitud:', status, error.response?.data);
 
-        console.error('Error de solicitud:', error.response?.status, error.response?.data);
-
-        // Manejo de errores de autenticación
+        // Si expira o es inválido el token
         if (status === 401 || status === 419) {
-            // Limpiar token y datos de usuario
             localStorage.removeItem('token');
             localStorage.removeItem('user');
-
-            // Redirigir a login si no está en login
             if (window.location.pathname !== '/login') {
                 window.location.href = '/login';
             }
         }
-
         return Promise.reject(error);
     }
 );
 
+// ===== Helpers para token =====
 export function setAuthToken(token) {
     if (token) {
         api.defaults.headers.common.Authorization = `Bearer ${token}`;
         localStorage.setItem('token', token);
-        try { window.dispatchEvent(new Event('storage')); } catch {}
+        try { window.dispatchEvent(new Event('storage')); } catch { }
     }
 }
 
 export function clearAuthToken() {
     delete api.defaults.headers.common.Authorization;
     localStorage.removeItem('token');
-    try { window.dispatchEvent(new Event('storage')); } catch {}
+    try { window.dispatchEvent(new Event('storage')); } catch { }
 }
 
+// Encabezados ad hoc
 export function configurarEncabezados(token) {
     return {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 }
 

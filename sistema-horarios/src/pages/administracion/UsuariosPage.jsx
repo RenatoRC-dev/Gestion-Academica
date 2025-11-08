@@ -1,210 +1,297 @@
-// src/pages/UsuariosPage.jsx
+// src/pages/administracion/UsuariosPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import Modal from '../../components/Modal.jsx';
+import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import PageHeader from '../../components/PageHeader.jsx';
+import SearchBar from '../../components/SearchBar.jsx';
 import { useToast } from '../../components/ToastProvider.jsx';
 import {
-    fetchUsuarios, createUsuario, updateUsuario, deleteUsuario,
-    selectUsuarios, selectUsuariosLoading, selectUsuariosError, selectUsuariosMeta,
-    selectUsuariosSaving, selectUsuariosSaveError, selectUsuariosDeleting, selectUsuariosDeleteError,
-    selectUsuariosPasswordTemp, clearUsuariosSaveError, clearUsuariosDeleteError, clearUsuariosPasswordTemp
+  fetchUsuarios,
+  createUsuario,
+  updateUsuario,
+  deleteUsuario,
+  selectUsuarios,
+  selectUsuariosLoading,
+  selectUsuariosError,
+  selectUsuariosMeta,
+  selectUsuariosSaving,
+  selectUsuariosSaveError,
+  selectUsuariosDeleting,
+  selectUsuariosDeleteError,
+  selectUsuariosPasswordTemp,
+  clearUsuariosSaveError,
+  clearUsuariosDeleteError,
+  clearUsuariosPasswordTemp,
 } from '../../store/slices/usuariosSlice.js';
 import UserRolesPanel from '../../components/UserRolesPanel.jsx';
 
 export default function UsuariosPage() {
-    const dispatch = useDispatch();
-    const toast = useToast();
+  const dispatch = useDispatch();
+  const toast = useToast();
 
-    const items = useSelector(selectUsuarios);
-    const loading = useSelector(selectUsuariosLoading);
-    const error = useSelector(selectUsuariosError);
-    const meta = useSelector(selectUsuariosMeta);
-    const saving = useSelector(selectUsuariosSaving);
-    const saveError = useSelector(selectUsuariosSaveError);
-    const deleting = useSelector(selectUsuariosDeleting);
-    const deleteError = useSelector(selectUsuariosDeleteError);
-    const passwordTemp = useSelector(selectUsuariosPasswordTemp);
+  const items = useSelector(selectUsuarios);
+  const loading = useSelector(selectUsuariosLoading);
+  const error = useSelector(selectUsuariosError);
+  const meta = useSelector(selectUsuariosMeta);
+  const saving = useSelector(selectUsuariosSaving);
+  const saveError = useSelector(selectUsuariosSaveError);
+  const deleting = useSelector(selectUsuariosDeleting);
+  const deleteError = useSelector(selectUsuariosDeleteError);
+  const passwordTemp = useSelector(selectUsuariosPasswordTemp);
 
-    const [page, setPage] = useState(1);
-    const [q, setQ] = useState('');
-    const [open, setOpen] = useState(false);
-    const [editing, setEditing] = useState(null);
-    const [rolesOpen, setRolesOpen] = useState(false);
-    const [targetUser, setTargetUser] = useState(null);
+  const [page, setPage] = useState(1);
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [rolesOpen, setRolesOpen] = useState(false);
+  const [targetUser, setTargetUser] = useState(null);
+  const [confirm, setConfirm] = useState({ open: false, target: null });
 
-    const [form, setForm] = useState({ nombre_completo: '', email: '', activo: true });
+  const [form, setForm] = useState({ nombre_completo: '', email: '', activo: true });
 
-    useEffect(() => { dispatch(fetchUsuarios({ page })); }, [dispatch, page]);
+  useEffect(() => {
+    dispatch(fetchUsuarios({ page }));
+  }, [dispatch, page]);
 
-    useEffect(() => { if (saveError?.message) toast.push(saveError.message, 'error'); }, [saveError, toast]);
-    useEffect(() => {
-        if (deleteError?.message) { toast.push(deleteError.message, 'error'); dispatch(clearUsuariosDeleteError()); }
-    }, [deleteError, dispatch, toast]);
+  useEffect(() => {
+    if (saveError?.message) toast.push(saveError.message, 'error');
+  }, [saveError, toast]);
 
-    useEffect(() => {
-        if (passwordTemp) {
-            toast.push(`Usuario creado. Password temporal: ${passwordTemp}`, 'success');
-            dispatch(clearUsuariosPasswordTemp());
-        }
-    }, [passwordTemp, dispatch, toast]);
+  useEffect(() => {
+    if (deleteError?.message) {
+      toast.push(deleteError.message, 'error');
+      dispatch(clearUsuariosDeleteError());
+    }
+  }, [deleteError, dispatch, toast]);
 
-    const filtered = useMemo(() => {
-        const s = q.trim().toLowerCase();
-        if (!s) return items;
-        return items.filter((it) => JSON.stringify(it).toLowerCase().includes(s));
-    }, [q, items]);
+  useEffect(() => {
+    if (passwordTemp) {
+      toast.push(`Usuario creado. Contraseña temporal: ${passwordTemp}`, 'success');
+      dispatch(clearUsuariosPasswordTemp());
+    }
+  }, [passwordTemp, dispatch, toast]);
 
-    const openCreate = () => {
-        setEditing(null);
-        setForm({ nombre_completo: '', email: '', activo: true });
-        dispatch(clearUsuariosSaveError());
-        setOpen(true);
-    };
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return items;
+    return items.filter((it) => JSON.stringify(it).toLowerCase().includes(s));
+  }, [q, items]);
 
-    const openEdit = (row) => {
-        setEditing(row);
-        setForm({
-            nombre_completo: row?.nombre_completo ?? '',
-            email: row?.email ?? '',
-            activo: !!row?.activo
-        });
-        dispatch(clearUsuariosSaveError());
-        setOpen(true);
-    };
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ nombre_completo: '', email: '', activo: true });
+    dispatch(clearUsuariosSaveError());
+    setOpen(true);
+  };
 
-    const onSubmit = async (e) => {
-        e?.preventDefault?.();
-        if (!form.nombre_completo.trim() || !form.email.trim()) {
-            toast.push('Nombre y email son obligatorios', 'error');
-            return;
-        }
-        try {
-            if (editing) {
-                await dispatch(updateUsuario({ id: editing.id, ...form })).unwrap();
-                toast.push('Usuario actualizado', 'success');
-            } else {
-                await dispatch(createUsuario(form)).unwrap();
-                // toast del password temporal se muestra en effect
-            }
-            setOpen(false);
-            dispatch(fetchUsuarios({ page }));
-        } catch { }
-    };
+  const openEdit = (row) => {
+    setEditing(row);
+    setForm({
+      nombre_completo: row?.nombre_completo ?? '',
+      email: row?.email ?? '',
+      activo: !!row?.activo,
+    });
+    dispatch(clearUsuariosSaveError());
+    setOpen(true);
+  };
 
-    const onDelete = async (row) => {
-        if (!confirm(`¿Eliminar el usuario "${row?.nombre_completo ?? row?.email ?? row.id}"?`)) return;
-        try {
-            await dispatch(deleteUsuario(row.id)).unwrap();
-            toast.push('Usuario eliminado', 'success');
-            dispatch(fetchUsuarios({ page }));
-        } catch { }
-    };
+  const onSubmit = async (e) => {
+    e?.preventDefault?.();
+    if (!form.nombre_completo.trim() || !form.email.trim()) {
+      toast.push('Nombre y correo son obligatorios', 'error');
+      return;
+    }
+    try {
+      if (editing) {
+        await dispatch(updateUsuario({ id: editing.id, ...form })).unwrap();
+        toast.push('Usuario actualizado', 'success');
+      } else {
+        await dispatch(createUsuario(form)).unwrap();
+        // El toast de contraseña temporal se muestra en el effect
+      }
+      setOpen(false);
+      dispatch(fetchUsuarios({ page }));
+    } catch {}
+  };
 
-    const onManageRoles = (row) => {
-        setTargetUser(row);
-        setRolesOpen(true);
-    };
+  const requestDelete = (row) => {
+    setConfirm({ open: true, target: row });
+  };
 
-    const Paginador = () => (
-        <div className="flex items-center justify-between mt-4 text-sm">
-            <div>Mostrando {filtered.length} / {meta.total} (página {meta.current_page} de {meta.last_page})</div>
-            <div className="space-x-2">
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>« Primera</button>
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ Anterior</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}>Siguiente ›</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(meta.last_page)}>Última »</button>
-            </div>
+  const confirmDelete = async () => {
+    const row = confirm.target;
+    if (!row) return;
+    try {
+      await dispatch(deleteUsuario(row.id)).unwrap();
+      toast.push('Usuario eliminado', 'success');
+      setConfirm({ open: false, target: null });
+      dispatch(fetchUsuarios({ page }));
+    } catch {}
+  };
+
+  const onManageRoles = (row) => {
+    setTargetUser(row);
+    setRolesOpen(true);
+  };
+
+  const Paginador = () => (
+    <div className="flex items-center justify-between mt-4 text-sm">
+      <div>
+        Mostrando {filtered.length} / {meta.total} (página {meta.current_page} de {meta.last_page})
+      </div>
+      <div className="space-x-2">
+        <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>
+          « Primera
+        </button>
+        <button
+          className="btn-secondary"
+          disabled={meta.current_page <= 1}
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+        >
+          ‹ Anterior
+        </button>
+        <button
+          className="btn-secondary"
+          disabled={meta.current_page >= meta.last_page}
+          onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
+        >
+          Siguiente ›
+        </button>
+        <button
+          className="btn-secondary"
+          disabled={meta.current_page >= meta.last_page}
+          onClick={() => setPage(meta.last_page)}
+        >
+          Última »
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Usuarios" subtitle="Gestiona cuentas y permisos">
+        <button className="btn-primary" onClick={openCreate}>+ Nuevo usuario</button>
+      </PageHeader>
+
+      <div className="card">
+        <div className="flex items-center justify-between">
+          <SearchBar className="max-w-sm" value={q} onChange={setQ} placeholder="Buscar por nombre, correo o rol" />
+          <span className="text-sm text-gray-500">Paginación del servidor</span>
         </div>
-    );
 
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">👤 Usuarios</h1>
-                <button className="btn-primary" onClick={openCreate}>+ Nuevo Usuario</button>
+        {error && <div className="bg-red-50 text-red-700 text-sm p-2 rounded mt-4">{error}</div>}
+
+        {loading ? (
+          <div className="py-10 text-center">Cargando…</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-10 text-center text-gray-600">Sin registros</div>
+        ) : (
+          <div className="mt-4 divide-y rounded border bg-white">
+            <div className="grid grid-cols-12 px-3 py-2 text-xs font-semibold text-gray-600">
+              <div className="col-span-1">ID</div>
+              <div className="col-span-3">Nombre</div>
+              <div className="col-span-3">Correo</div>
+              <div className="col-span-3">Roles</div>
+              <div className="col-span-2 text-right">Acciones</div>
             </div>
-
-            <div className="card">
-                <div className="flex items-center justify-between">
-                    <input className="input max-w-sm" placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
-                    <span className="text-sm text-gray-500">Paginación del servidor</span>
+            {filtered.map((it) => (
+              <div key={it.id} className="grid grid-cols-12 items-center px-3 py-2 text-sm">
+                <div className="col-span-1">#{it.id}</div>
+                <div className="col-span-3">{it.nombre_completo ?? '—'}</div>
+                <div className="col-span-3">{it.email ?? '—'}</div>
+                <div className="col-span-3 truncate">
+                  {Array.isArray(it.roles) ? it.roles.map((r) => r.nombre).join(', ') : '—'}
                 </div>
+                <div className="col-span-2 text-right space-x-2">
+                  <button className="btn-secondary" onClick={() => onManageRoles(it)}>Roles</button>
+                  <button className="btn-secondary" onClick={() => openEdit(it)}>Editar</button>
+                  <button className="btn-danger" disabled={deleting} onClick={() => requestDelete(it)}>
+                    {deleting && targetUser?.id === it.id ? 'Eliminando…' : 'Eliminar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-                {error && <div className="bg-red-50 text-red-700 text-sm p-2 rounded mt-4">{error}</div>}
+        <Paginador />
+      </div>
 
-                {loading ? (
-                    <div className="py-10 text-center">Cargando…</div>
-                ) : filtered.length === 0 ? (
-                    <div className="py-10 text-center text-gray-600">Sin registros</div>
-                ) : (
-                    <div className="mt-4 divide-y rounded border bg-white">
-                        <div className="grid grid-cols-12 px-3 py-2 text-xs font-semibold text-gray-600">
-                            <div className="col-span-1">ID</div>
-                            <div className="col-span-3">Nombre</div>
-                            <div className="col-span-3">Email</div>
-                            <div className="col-span-3">Roles</div>
-                            <div className="col-span-2 text-right">Acciones</div>
-                        </div>
-                        {filtered.map((it) => (
-                            <div key={it.id} className="grid grid-cols-12 items-center px-3 py-2 text-sm">
-                                <div className="col-span-1">#{it.id}</div>
-                                <div className="col-span-3">{it.nombre_completo ?? '—'}</div>
-                                <div className="col-span-3">{it.email ?? '—'}</div>
-                                <div className="col-span-3 truncate">{Array.isArray(it.roles) ? it.roles.map(r => r.nombre).join(', ') : '—'}</div>
-                                <div className="col-span-2 text-right space-x-2">
-                                    <button className="btn-secondary" onClick={() => onManageRoles(it)}>Roles</button>
-                                    <button className="btn-secondary" onClick={() => openEdit(it)}>Editar</button>
-                                    <button className="btn-danger" disabled={deleting} onClick={() => onDelete(it)}>Eliminar</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                <Paginador />
+      {/* Modal crear/editar */}
+      <Modal
+        open={open}
+        title={editing ? 'Editar usuario' : 'Nuevo usuario'}
+        onClose={() => setOpen(false)}
+        footer={
+          <>
+            <button className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>
+              Cancelar
+            </button>
+            <button className="btn-primary" onClick={onSubmit} disabled={saving}>
+              {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre completo *</label>
+              <input
+                className="input"
+                value={form.nombre_completo}
+                onChange={(e) => setForm((f) => ({ ...f, nombre_completo: e.target.value }))}
+                required
+              />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Correo *</label>
+              <input
+                type="email"
+                className="input"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                required
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Activo</label>
+            <input
+              type="checkbox"
+              checked={!!form.activo}
+              onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
+            />
+          </div>
+          {saveError?.errors && (
+            <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded">
+              {Object.entries(saveError.errors).map(([k, v]) => (
+                <div key={k}>
+                  <strong>{k}:</strong> {Array.isArray(v) ? v.join(', ') : String(v)}
+                </div>
+              ))}
+            </div>
+          )}
+        </form>
+      </Modal>
 
-            {/* Modal crear/editar */}
-            <Modal
-                open={open}
-                title={editing ? 'Editar Usuario' : 'Nuevo Usuario'}
-                onClose={() => setOpen(false)}
-                footer={
-                    <>
-                        <button className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>Cancelar</button>
-                        <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-                            {saving ? 'Guardando…' : 'Guardar'}
-                        </button>
-                    </>
-                }
-            >
-                <form onSubmit={onSubmit} className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre completo *</label>
-                            <input className="input" value={form.nombre_completo} onChange={(e) => setForm((f) => ({ ...f, nombre_completo: e.target.value }))} required />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                            <input type="email" className="input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Activo</label>
-                        <input type="checkbox" checked={!!form.activo} onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))} />
-                    </div>
-                    {saveError?.errors && (
-                        <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded">
-                            {Object.entries(saveError.errors).map(([k, v]) => (<div key={k}><strong>{k}:</strong> {Array.isArray(v) ? v.join(', ') : String(v)}</div>))}
-                        </div>
-                    )}
-                </form>
-            </Modal>
+      {/* Panel de roles por usuario */}
+      {rolesOpen && targetUser && (
+        <UserRolesPanel open={rolesOpen} onClose={() => setRolesOpen(false)} user={targetUser} />
+      )}
 
-            {/* Panel roles por usuario */}
-            {rolesOpen && targetUser && (
-                <UserRolesPanel open={rolesOpen} onClose={() => setRolesOpen(false)} user={targetUser} />
-            )}
-        </div>
-    );
+      {/* Confirmación de eliminación */}
+      <ConfirmDialog
+        open={confirm.open}
+        title="Eliminar usuario"
+        message={`¿Eliminar el usuario "${confirm.target?.nombre_completo ?? confirm.target?.email ?? ''}"? Esta acción no se puede deshacer.`}
+        loading={deleting}
+        onCancel={() => setConfirm({ open: false, target: null })}
+        onConfirm={confirmDelete}
+      />
+    </div>
+  );
 }
+

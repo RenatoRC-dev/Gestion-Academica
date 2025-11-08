@@ -9,9 +9,9 @@ function Can({ roles = [], children, fallback = null }) {
         return <>{children}</>;
     }
 
-    const hasPermission = userRoles.some((userRole) =>
-        roles.includes(userRole.nombre?.toLowerCase() || userRole)
-    );
+    const hasPermission = userRoles
+        .map(r => (typeof r === 'string' ? r.toLowerCase() : r?.nombre?.toLowerCase()))
+        .some(userRole => roles.map(x => x.toLowerCase()).includes(userRole));
 
     if (hasPermission) {
         return <>{children}</>;

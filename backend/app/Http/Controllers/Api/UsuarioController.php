@@ -32,6 +32,14 @@ class UsuarioController extends Controller
     public function store(Request $request): JsonResponse
     {
         try {
+            // Solo administrador académico puede crear usuarios
+            $actual = auth()->user();
+            if (!$actual || !$actual->roles()->where('nombre', 'administrador_academico')->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para crear usuarios'
+                ], 403);
+            }
             $validated = $request->validate([
                 'nombre_completo' => 'required|string|max:255',
                 'email' => 'required|email|unique:usuario,email',
@@ -91,6 +99,14 @@ class UsuarioController extends Controller
     public function update(Request $request, Usuario $usuario): JsonResponse
     {
         try {
+            // Solo administrador académico puede actualizar usuarios
+            $actual = auth()->user();
+            if (!$actual || !$actual->roles()->where('nombre', 'administrador_academico')->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para actualizar usuarios'
+                ], 403);
+            }
             $validated = $request->validate([
                 'nombre_completo' => 'sometimes|string|max:255',
                 'email' => 'sometimes|email|unique:usuario,email,' . $usuario->id,
@@ -121,6 +137,14 @@ class UsuarioController extends Controller
     public function destroy(Usuario $usuario): JsonResponse
     {
         try {
+            // Solo administrador académico puede eliminar usuarios
+            $actual = auth()->user();
+            if (!$actual || !$actual->roles()->where('nombre', 'administrador_academico')->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para eliminar usuarios'
+                ], 403);
+            }
             // ✅ CORRECCIÓN: No permitir eliminar el último administrador
             $adminCount = Usuario::whereHas('roles', function($q) {
                 $q->where('nombre', 'administrador_academico');

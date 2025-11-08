@@ -127,6 +127,17 @@ body {
   background: #f9fafb;
 }
 
+/* Danger button (acciones destructivas) */
+.btn-danger {
+  background: #dc2626;
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
 .card {
   background: #fff;
   border: 1px solid #e5e7eb;

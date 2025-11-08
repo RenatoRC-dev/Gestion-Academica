@@ -66,7 +66,7 @@ function EditarHorarioPage() {
                 modalidades: [
                     { id: 1, nombre: 'Presencial' },
                     { id: 2, nombre: 'Virtual' },
-                    { id: 3, nombre: 'HÃ­brido' },
+                    { id: 3, nombre: 'Híbrido' },
                 ],
             });
         } catch (err) {
