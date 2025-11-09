@@ -8,6 +8,7 @@ import docentesReducer from './slices/docentesSlice.js';
 import usuariosReducer from './slices/usuariosSlice.js';
 import userRolesReducer from './slices/userRolesSlice.js';
 import bitacoraReducer from './slices/bitacoraSlice.js';
+import rolesReducer from './slices/rolesSlice.js';
 
 import horariosReducer from './slices/horariosSlice.js';
 import asistenciasReducer from './slices/asistenciaSlice.js';
@@ -30,6 +31,7 @@ const store = configureStore({
         asistencias: asistenciasReducer,
 
         // ⬇️ Nuevo
+        roles: rolesReducer,
         catalogos: catalogosReducer,
         metricas: metricasReducer,
     },

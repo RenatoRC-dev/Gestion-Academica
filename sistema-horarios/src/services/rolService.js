@@ -25,3 +25,5 @@ const rolService = {
         await api.delete(`/roles/${id}`);
     },
 };
+
+export default rolService;

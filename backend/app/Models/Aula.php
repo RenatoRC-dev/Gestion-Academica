@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Aula extends Model
 {
     protected $table = 'aula';
-    protected $fillable = ['codigo_aula', 'capacidad', 'tipo_aula_id', 'ubicacion', 'equipamiento', 'es_virtual', 'activo', 'created_by', 'updated_by'];
+    protected $fillable = ['codigo_aula', 'capacidad', 'tipo_aula_id', 'ubicacion', 'piso', 'equipamiento', 'es_virtual', 'activo', 'created_by', 'updated_by'];
     public $timestamps = true;
 
     public function tipo()

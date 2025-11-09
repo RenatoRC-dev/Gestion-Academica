@@ -35,13 +35,12 @@ class MateriaController extends Controller
             $validated = $request->validate([
                 'codigo' => 'required|string|unique:materia,codigo_materia',
                 'nombre' => 'required|string|max:255',
-                'creditos' => 'required|integer|min:1|max:20',
-                'horas_teoricas' => 'nullable|integer|min:0',
+                'descripcion' => 'nullable|string',
+                'activo' => 'nullable|boolean',
             ], [
                 'codigo.required' => 'El código es requerido',
                 'codigo.unique' => 'Este código ya existe',
                 'nombre.required' => 'El nombre es requerido',
-                'creditos.required' => 'Los créditos son requeridos',
             ]);
 
             DB::beginTransaction();
@@ -49,8 +48,8 @@ class MateriaController extends Controller
             $materia = Materia::create([
                 'codigo_materia' => $validated['codigo'],
                 'nombre' => $validated['nombre'],
-                'creditos' => $validated['creditos'] ?? null,
-                'horas_teoricas' => $validated['horas_teoricas'] ?? null,
+                'descripcion' => $validated['descripcion'] ?? null,
+                'activo' => $validated['activo'] ?? true,
             ]);
 
             DB::commit();
@@ -93,8 +92,8 @@ class MateriaController extends Controller
             $validated = $request->validate([
                 'codigo' => 'sometimes|string|unique:materia,codigo_materia,' . $materia->id,
                 'nombre' => 'sometimes|string|max:255',
-                'creditos' => 'sometimes|integer|min:1|max:20',
-                'horas_teoricas' => 'nullable|integer|min:0',
+                'descripcion' => 'nullable|string',
+                'activo' => 'nullable|boolean',
             ]);
 
             DB::beginTransaction();
@@ -102,8 +101,8 @@ class MateriaController extends Controller
             $materia->update(array_filter([
                 'codigo_materia' => $validated['codigo'] ?? null,
                 'nombre' => $validated['nombre'] ?? null,
-                'creditos' => $validated['creditos'] ?? null,
-                'horas_teoricas' => $validated['horas_teoricas'] ?? null,
+                'descripcion' => $validated['descripcion'] ?? null,
+                'activo' => $validated['activo'] ?? null,
             ], fn($val) => $val !== null));
 
             DB::commit();

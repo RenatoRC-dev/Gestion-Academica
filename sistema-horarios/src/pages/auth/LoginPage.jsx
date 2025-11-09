@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import Modal from '../../components/Modal.jsx';
+import Alert from '../../components/Alert.jsx';
+import { useToast } from '../../components/ToastProvider.jsx';
+import authService from '../../services/authService.js';
 import {
   doLogin,
   clearAuthError,
@@ -13,9 +17,14 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState(null);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const loading = useSelector(selectAuthLoading);
   const storeError = useSelector(selectAuthError);
@@ -37,6 +46,11 @@ export default function LoginPage() {
         <p className="text-center text-sm text-gray-500 mb-4">Sistema de Planificación y Asistencia</p>
 
         {storeError && <div className="mb-3 text-sm text-red-600">{storeError}</div>}
+        {recoveryMessage && (
+          <div className="mb-3">
+            <Alert type="success" message={recoveryMessage} onClose={() => setRecoveryMessage(null)} />
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -72,10 +86,65 @@ export default function LoginPage() {
             {loading ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
-        <div className="mt-3 text-center text-sm text-gray-600">
-          ¿No tienes cuenta? <a className="link" href="/registro">Crear Cuenta</a>
-        </div>
+      <div className="mt-3 text-center text-sm text-gray-600">
+        ¿Olvidaste tu contraseña?{' '}
+        <button type="button" className="link" onClick={() => setRecoveryOpen(true)}>
+          Recuperarla
+        </button>
       </div>
+      <Modal open={recoveryOpen} title="Recuperar contraseña" onClose={() => setRecoveryOpen(false)}>
+        <form
+          className="form-layout"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setRecoveryLoading(true);
+            try {
+              const response = await authService.recoverPassword(recoveryEmail.trim());
+              if (response?.success) {
+                const message = `Contraseña temporal: ${response.password_temporal || 'Revise su correo'}`;
+                toast.push(message, 'success');
+                setRecoveryMessage(message);
+                setRecoveryOpen(false);
+                setRecoveryEmail('');
+              } else {
+                toast.push(response?.message || 'No se pudo recuperar la contraseña', 'error');
+              }
+            } catch (error) {
+              toast.push(
+                error?.response?.data?.message || 'Error al recuperar la contraseña',
+                'error'
+              );
+            } finally {
+              setRecoveryLoading(false);
+            }
+          }}
+        >
+          <div className="form-section">
+            <p className="form-section-title">Ingresa tu correo institucional</p>
+            <div className="form-grid">
+              <div className="form-field">
+                <input
+                  className="input"
+                  type="email"
+                  placeholder="usuario@gestion-academica.edu"
+                  value={recoveryEmail}
+                  onChange={(e) => setRecoveryEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn-secondary" onClick={() => setRecoveryOpen(false)}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={recoveryLoading}>
+              {recoveryLoading ? 'Enviando…' : 'Enviar'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
     </div>
   );
 }

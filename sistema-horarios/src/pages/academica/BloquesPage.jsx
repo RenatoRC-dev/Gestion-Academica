@@ -30,7 +30,7 @@ export default function BloquesPage() {
   const cargarBloques = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/bloques-horarios');
+    const response = await api.get('/bloques-horarios', { params: { per_page: 100 } });
       if (response.data.success) {
         setBloques(response.data.data.data || response.data.data || []);
       }

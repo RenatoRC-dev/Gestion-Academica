@@ -9,7 +9,6 @@ use App\Models\Usuario;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class DocenteController extends Controller
 {
@@ -53,7 +52,7 @@ class DocenteController extends Controller
 
             DB::beginTransaction();
 
-            $password = Str::random(12);
+            $password = $validated['ci'];
 
             $usuario = Usuario::create([
                 'nombre_completo' => $validated['nombre_completo'],

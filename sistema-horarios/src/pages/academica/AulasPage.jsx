@@ -24,7 +24,14 @@ import {
   clearAulasDeleteError,
 } from '../../store/slices/aulasSlice.js';
 
-const emptyForm = { nombre: '', capacidad: 1, ubicacion: '', piso: 1 };
+const emptyForm = {
+  nombre: '',
+  capacidad: 1,
+  ubicacion: '',
+  piso: 1,
+  equipamiento: '',
+  es_virtual: false,
+};
 
 export default function AulasPage() {
   const dispatch = useDispatch();
@@ -66,18 +73,65 @@ export default function AulasPage() {
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return items;
-    return items.filter((row) =>
-      [row.codigo_aula, row.ubicacion, row.piso?.toString()].some((field) =>
-        field?.toLowerCase().includes(needle)
-      )
-    );
+    return items.filter((row) => {
+      const searchable = [
+        row.codigo_aula,
+        row.ubicacion,
+        row.piso?.toString(),
+        row.equipamiento,
+        row.activo ? 'activo' : 'inactivo',
+        row.es_virtual ? 'virtual' : 'presencial',
+      ];
+      return searchable.some((field) => field?.toLowerCase().includes(needle));
+    });
   }, [q, items]);
+
+  const toggleActivo = async (row) => {
+    if (!row) return;
+    try {
+      await dispatch(updateAula({ id: row.id, activo: !row.activo })).unwrap();
+      toast.push(
+        `Aula ${row.codigo_aula} ${row.activo ? 'marcada como inactiva' : 'activada'}`,
+        'success'
+      );
+    } catch {}
+  };
 
   const columns = [
     { header: 'Código', accessor: 'codigo_aula', sortable: true },
     { header: 'Capacidad', accessor: 'capacidad', align: 'center' },
     { header: 'Ubicación', accessor: 'ubicacion' },
     { header: 'Piso', accessor: 'piso', align: 'center' },
+    { header: 'Equipamiento', accessor: 'equipamiento' },
+    {
+      header: 'Activo',
+      accessor: 'activo',
+      align: 'center',
+      render: (row) => (
+        <button
+          type="button"
+          onClick={() => toggleActivo(row)}
+          aria-pressed={row.activo}
+          style={{
+            padding: '0.25rem 0.75rem',
+            borderRadius: '999px',
+            border: '1px solid #CBD5F5',
+            backgroundColor: row.activo ? '#059669' : '#DC2626',
+            color: '#fff',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {row.activo ? 'Sí' : 'No'}
+        </button>
+      ),
+    },
+    {
+      header: 'Virtual',
+      accessor: 'es_virtual',
+      align: 'center',
+      render: (row) => (row.es_virtual ? 'Sí' : 'No'),
+    },
   ];
 
   const openCreate = () => {
@@ -93,6 +147,8 @@ export default function AulasPage() {
       nombre: row?.codigo_aula ?? '',
       capacidad: row?.capacidad ?? 1,
       ubicacion: row?.ubicacion ?? '',
+      equipamiento: row?.equipamiento ?? '',
+      es_virtual: Boolean(row?.es_virtual),
       piso: row?.piso ?? 1,
     });
     dispatch(clearAulasSaveError());
@@ -226,8 +282,33 @@ export default function AulasPage() {
                   type="number"
                   min="0"
                   value={form.piso}
-                  onChange={(e) => setForm((prev) => ({ ...prev, piso: Number(e.target.value) }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, piso: Number(e.target.value) }))
+                  }
                 />
+              </div>
+              <div className="form-field">
+                <label>Equipamiento</label>
+                <input
+                  className="input"
+                  placeholder="Proyecto, PC"
+                  value={form.equipamiento}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, equipamiento: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="form-field">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.es_virtual}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, es_virtual: e.target.checked }))
+                    }
+                  />
+                  Es virtual
+                </label>
               </div>
             </div>
           </div>

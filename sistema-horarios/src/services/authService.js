@@ -65,6 +65,20 @@ export async function getCurrentUser() {
     }
 }
 
+export async function changePassword(currentPassword, newPassword, newPasswordConfirmation) {
+    const resp = await api.post('/user/password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_password_confirmation: newPasswordConfirmation,
+    });
+    return resp.data;
+}
+
+export async function recoverPassword(email) {
+    const resp = await api.post('/password/recuperar', { email });
+    return resp.data;
+}
+
 export async function logout() {
     try {
         const resp = await api.post('/logout');
@@ -92,5 +106,5 @@ export async function logout() {
 }
 
 // Export default para compatibilidad con AuthContext
-const authService = { login, getCurrentUser, logout };
+const authService = { login, getCurrentUser, changePassword, recoverPassword, logout };
 export default authService;

@@ -39,12 +39,35 @@ class HorarioService
 
     private array $asignacion = [];
     private array $ocupacion = [];
+    private array $restriccionesDocentes = [];
+    private array $preferencias = [];
 
     public function __construct(float $delta = 0.15, float $lambda = 2.0, int $piso = 5)
     {
         $this->DELTA = $delta;
         $this->LAMBDA = $lambda;
         $this->PISO_ALTO = $piso;
+    }
+
+    public function setRestriccionesDocentes(array $restricciones): void
+    {
+        $this->restriccionesDocentes = [];
+        foreach ($restricciones as $docenteId => $pisos) {
+            $this->restriccionesDocentes[(int)$docenteId] = array_filter(array_map('intval', $pisos), fn ($val) => $val >= 0);
+        }
+    }
+
+    public function setPreferencias(array $preferencias): void
+    {
+        $this->preferencias = [];
+        foreach ($preferencias as $preferencia) {
+            $docente = $preferencia['docente_id'] ?? null;
+            $grupo = $preferencia['grupo_id'] ?? null;
+            if (!$docente || !$grupo) {
+                continue;
+            }
+            $this->preferencias[] = ['docente_id' => (int)$docente, 'grupo_id' => (int)$grupo];
+        }
     }
 
     private function calcularPenalidad(array $grupo, array $aula): float
@@ -146,6 +169,7 @@ class HorarioService
                 ", Bloques: " . count($bloques) . ", Docentes: " . count($docentes));
         }
 
+        $this->asignarPreferencias($grupos, $aulas, $bloques, $docentes, $periodoId);
         $this->ejecutarHeuristica($grupos, $aulas, $bloques, $docentes);
 
         $asignacionesCreadas = 0;
@@ -153,11 +177,13 @@ class HorarioService
 
         foreach ($this->asignacion as $grupoId => $asignacion) {
             [$aulaId, $bloqueId] = $asignacion;
+            $aula = collect($aulas)->firstWhere('id', $aulaId);
 
             $docente = $this->encontrarDocenteDisponible(
                 $docentes,
                 $bloqueId,
-                $periodoId
+                $periodoId,
+                $aula ?? []
             );
 
             if (!$docente) {
@@ -205,7 +231,7 @@ class HorarioService
         ];
     }
 
-    private function encontrarDocenteDisponible(array $docentes, int $bloqueId, int $periodoId): ?array
+    private function encontrarDocenteDisponible(array $docentes, int $bloqueId, int $periodoId, array $aula): ?array
     {
         $docentesOcupados = HorarioAsignado::where('bloque_horario_id', $bloqueId)
             ->where('periodo_academico_id', $periodoId)
@@ -214,6 +240,11 @@ class HorarioService
 
         foreach ($docentes as $docente) {
             if (!in_array($docente['id'], $docentesOcupados)) {
+                $vetos = $this->restriccionesDocentes[$docente['id']] ?? [];
+                $aulaPiso = $aula['piso'] ?? 0;
+                if (!empty($vetos) && in_array($aulaPiso, $vetos, true)) {
+                    continue;
+                }
                 return $docente;
             }
         }
@@ -303,6 +334,69 @@ class HorarioService
         }
 
         return $totalAlumnos - $totalPenal;
+    }
+
+    private function asignarPreferencias(array &$grupos, array &$aulas, array $bloques, array $docentes, int $periodoId): void
+    {
+        if (empty($this->preferencias)) {
+            return;
+        }
+
+        $gruposPorId = collect($grupos)->keyBy('id')->toArray();
+        $docentesPorId = collect($docentes)->keyBy('id')->toArray();
+
+        foreach ($this->preferencias as $preferencia) {
+            $grupoId = $preferencia['grupo_id'];
+            $docenteId = $preferencia['docente_id'];
+
+            if (!isset($gruposPorId[$grupoId]) || !isset($docentesPorId[$docenteId])) {
+                continue;
+            }
+
+            if (isset($this->asignacion[$grupoId])) {
+                continue;
+            }
+
+            $mejorPenal = 1e18;
+            $mejorPar = null;
+
+            foreach ($aulas as $aula) {
+                if ($gruposPorId[$grupoId]['tamano'] > $aula['capacidad']) {
+                    continue;
+                }
+
+                if (!$this->validarTipoAula($aula['tipo'], $gruposPorId[$grupoId]['tipo'])) {
+                    continue;
+                }
+
+                foreach ($bloques as $bloque) {
+                    $key = $aula['id'] . '|' . $bloque['id'];
+                    if ($this->ocupacion[$key] ?? null) {
+                        continue;
+                    }
+
+                    if (in_array($bloque['id'], $gruposPorId[$grupoId]['vetos_bloques'])) {
+                        continue;
+                    }
+
+                    if (in_array($aula['id'], $gruposPorId[$grupoId]['vetos_aulas'])) {
+                        continue;
+                    }
+
+                    $penal = $this->calcularPenalidad($gruposPorId[$grupoId], $aula);
+                    if ($penal < $mejorPenal) {
+                        $mejorPenal = $penal;
+                        $mejorPar = [$aula['id'], $bloque['id']];
+                    }
+                }
+            }
+
+            if ($mejorPar !== null) {
+                $this->asignacion[$grupoId] = $mejorPar;
+                $key = $mejorPar[0] . '|' . $mejorPar[1];
+                $this->ocupacion[$key] = $grupoId;
+            }
+        }
     }
 
     /**

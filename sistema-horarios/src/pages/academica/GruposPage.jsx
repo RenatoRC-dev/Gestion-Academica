@@ -26,7 +26,7 @@ import {
 import { fetchMaterias, selectMaterias } from '../../store/slices/materiasSlice.js';
 import { fetchPeriodos, selectPeriodos } from '../../store/slices/periodosSlice.js';
 
-const emptyForm = { materia_id: '', periodo_id: '', codigo: '', cantidad_maxima: 1 };
+const emptyForm = { materia_id: '', periodo_id: '', codigo: '', cantidad_maxima: 1, cantidad_minima: 0 };
 
 export default function GruposPage() {
   const dispatch = useDispatch();
@@ -101,7 +101,14 @@ export default function GruposPage() {
       header: 'Periodo',
       render: (row) => row.periodo?.nombre ?? row.periodo?.codigo ?? '-',
     },
-    { header: 'Cupo', accessor: 'cupo_maximo', align: 'center' },
+    {
+      header: 'Cupo',
+      render: (row) =>
+        row.cupo_maximo != null || row.cupo_minimo != null
+          ? `${row.cupo_maximo ?? '-'} / ${row.cupo_minimo ?? '-'}`
+          : '-',
+      align: 'center',
+    },
   ];
 
   const openCreate = () => {
@@ -118,6 +125,7 @@ export default function GruposPage() {
       periodo_id: row?.periodo_academico_id ?? row?.periodo?.id ?? '',
       codigo: row?.codigo_grupo ?? '',
       cantidad_maxima: row?.cupo_maximo ?? 1,
+      cantidad_minima: row?.cupo_minimo ?? 0,
     });
     dispatch(clearGruposSaveError());
     setOpenForm(true);
@@ -276,6 +284,19 @@ export default function GruposPage() {
                     setForm((prev) => ({ ...prev, cantidad_maxima: Number(e.target.value) }))
                   }
                 />
+              </div>
+              <div className="form-field">
+                <label>Cupo mínimo</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={form.cantidad_minima}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, cantidad_minima: Number(e.target.value) }))
+                  }
+                />
+                <p className="text-xs text-gray-400 mt-1">Opcional; puede quedar en blanco</p>
               </div>
             </div>
           </div>

@@ -24,7 +24,7 @@ import {
   clearMateriasDeleteError,
 } from '../../store/slices/materiasSlice.js';
 
-const emptyForm = { codigo: '', nombre: '', creditos: 1, horas_teoricas: 0 };
+const emptyForm = { codigo: '', nombre: '', descripcion: '', activo: true };
 
 export default function MateriasPage() {
   const dispatch = useDispatch();
@@ -66,16 +66,55 @@ export default function MateriasPage() {
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return items;
-    return items.filter((it) =>
-      [it.codigo_materia, it.nombre].some((field) => field?.toLowerCase().includes(needle))
-    );
+    return items.filter((it) => {
+      const searchable = [
+        it.codigo_materia,
+        it.nombre,
+        it.descripcion,
+        it.activo ? 'activo' : 'inactivo',
+      ];
+      return searchable.some((field) => field?.toLowerCase().includes(needle));
+    });
   }, [q, items]);
+
+  const toggleActivo = async (row) => {
+    if (!row) return;
+    try {
+      await dispatch(updateMateria({ id: row.id, activo: !row.activo })).unwrap();
+      toast.push(
+        `Materia "${row.nombre ?? row.codigo_materia}" ${row.activo ? 'desactivada' : 'activada'}`,
+        'success'
+      );
+    } catch {}
+  };
 
   const columns = [
     { header: 'Código', accessor: 'codigo_materia', sortable: true },
     { header: 'Nombre', accessor: 'nombre', sortable: true },
-    { header: 'Créditos', accessor: 'creditos', align: 'center' },
-    { header: 'Horas teóricas', accessor: 'horas_teoricas', align: 'center' },
+    { header: 'Descripción', accessor: 'descripcion' },
+    {
+      header: 'Activo',
+      accessor: 'activo',
+      align: 'center',
+      render: (row) => (
+        <button
+          type="button"
+          onClick={() => toggleActivo(row)}
+          aria-pressed={row.activo}
+          style={{
+            padding: '0.25rem 0.75rem',
+            borderRadius: '999px',
+            border: '1px solid #CBD5F5',
+            backgroundColor: row.activo ? '#059669' : '#DC2626',
+            color: '#fff',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {row.activo ? 'Sí' : 'No'}
+        </button>
+      ),
+    },
   ];
 
   const openCreate = () => {
@@ -90,8 +129,8 @@ export default function MateriasPage() {
     setForm({
       codigo: row?.codigo_materia ?? '',
       nombre: row?.nombre ?? '',
-      creditos: row?.creditos ?? 1,
-      horas_teoricas: row?.horas_teoricas ?? 0,
+      descripcion: row?.descripcion ?? '',
+      activo: Boolean(row?.activo),
     });
     dispatch(clearMateriasSaveError());
     setOpenForm(true);
@@ -181,59 +220,58 @@ export default function MateriasPage() {
         onClose={closeForm}
       >
         <form onSubmit={onSubmit} className="form-layout">
-          <div className="form-section">
-            <p className="form-section-title">Datos de la materia</p>
-          <div className="form-grid">
-            <div className="form-field">
-              <label>
-                Código <span className="text-red-500">*</span>
-              </label>
-                <input
-                  className="input"
-                  placeholder="MAT101"
-                  value={form.codigo}
-                  onChange={(e) => setForm((prev) => ({ ...prev, codigo: e.target.value }))}
-                  required
-                />
-              </div>
+            <div className="form-section">
+              <p className="form-section-title">Datos de la materia</p>
+            <div className="form-grid">
               <div className="form-field">
                 <label>
-                  Nombre <span className="text-red-500">*</span>
+                  Código <span className="text-red-500">*</span>
                 </label>
-                <input
-                  className="input"
-                  placeholder="Matemáticas I"
-                  value={form.nombre}
-                  onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="form-field">
-                <label>Créditos</label>
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  value={form.creditos}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, creditos: Number(e.target.value) }))
-                  }
-                />
-              </div>
-              <div className="form-field">
-                <label>Horas teóricas</label>
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  value={form.horas_teoricas}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, horas_teoricas: Number(e.target.value) }))
-                  }
-                />
+                  <input
+                    className="input"
+                    placeholder="MAT101"
+                    value={form.codigo}
+                    onChange={(e) => setForm((prev) => ({ ...prev, codigo: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-field">
+                  <label>
+                    Nombre <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    className="input"
+                    placeholder="Matemáticas I"
+                    value={form.nombre}
+                    onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-field">
+                  <label>Descripción</label>
+                  <textarea
+                    className="input"
+                    rows="2"
+                    value={form.descripcion}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, descripcion: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="form-field">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={form.activo}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, activo: e.target.checked }))
+                      }
+                    />
+                    Activo
+                  </label>
+                </div>
               </div>
             </div>
-          </div>
 
           {saveError?.errors && (
             <div className="bg-yellow-50 text-yellow-800 text-xs p-3 rounded">

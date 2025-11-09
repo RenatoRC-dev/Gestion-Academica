@@ -199,12 +199,38 @@ class HorarioController extends Controller
 
             $validated = $request->validate([
                 'periodo_id' => 'required|exists:periodo_academico,id',
-            ], [
-                'periodo_id.required' => 'El ID del período es requerido',
-                'periodo_id.exists' => 'El período no existe',
-            ]);
+            'restricciones_docentes' => 'nullable|array',
+            'restricciones_docentes.*.docente_id' => 'nullable|exists:docente,persona_id',
+            'restricciones_docentes.*.pisos' => 'nullable|array',
+            'restricciones_docentes.*.pisos.*' => 'integer|min:0',
+            'preferencias' => 'nullable|array',
+            'preferencias.*.docente_id' => 'required_with:preferencias|exists:docente,persona_id',
+            'preferencias.*.grupo_id' => 'required_with:preferencias|exists:grupo,id',
+        ], [
+            'periodo_id.required' => 'El ID del período es requerido',
+            'periodo_id.exists' => 'El período no existe',
+        ]);
 
             DB::beginTransaction();
+
+            $restricciones = [];
+            if (!empty($validated['restricciones_docentes'])) {
+                foreach ($validated['restricciones_docentes'] as $entry) {
+                    $docenteId = $entry['docente_id'] ?? null;
+                    $pisosRaw = $entry['pisos'] ?? [];
+                    $pisos = array_values(array_filter(array_map('intval', $pisosRaw), fn($p) => $p >= 0));
+                    if (!$docenteId || empty($pisos)) {
+                        continue;
+                    }
+                    $restricciones[$docenteId] = $pisos;
+                }
+            if (!empty($restricciones)) {
+                $this->horarioService->setRestriccionesDocentes($restricciones);
+            }
+            if (!empty($validated['preferencias'])) {
+                $this->horarioService->setPreferencias($validated['preferencias']);
+            }
+            }
 
             // Usar el servicio para generar horarios
             $resultado = $this->horarioService->generarHorario($validated['periodo_id']);

@@ -25,6 +25,61 @@ const formatDateTime = (value) => {
   });
 };
 
+const actionLabels = {
+  POST: 'Creación/ingreso',
+  PUT: 'Modificación',
+  DELETE: 'Eliminación',
+};
+
+const parseJson = (value) => {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const buildDiff = (prev, next) => {
+  if (!prev && !next) return null;
+  const keys = new Set([...(prev ? Object.keys(prev) : []), ...(next ? Object.keys(next) : [])]);
+  const changes = [];
+  keys.forEach((key) => {
+    const before = prev ? prev[key] : undefined;
+    const after = next ? next[key] : undefined;
+    if (JSON.stringify(before) === JSON.stringify(after)) return;
+    changes.push(`${key}: ${before ?? '-'} → ${after ?? '-'}`);
+  });
+  return changes.length ? changes.join('; ') : null;
+};
+
+const formatDetail = (row) => {
+  const lines = [];
+  if (row.tabla_afectada) {
+    lines.push(`Tabla: ${row.tabla_afectada}${row.registro_id ? ` (ID ${row.registro_id})` : ''}`);
+  }
+  if (row.descripcion) {
+    lines.push(row.descripcion);
+  }
+  const prev = parseJson(row.datos_anteriores);
+  const next = parseJson(row.datos_nuevos);
+  const diff = buildDiff(prev, next);
+  if (diff) {
+    lines.push(diff);
+  }
+  if (!lines.length) {
+    return '-';
+  }
+  return (
+    <div className="text-sm leading-snug space-y-1">
+      {lines.map((text, index) => (
+        <div key={`${text}-${index}`}>{text}</div>
+      ))}
+    </div>
+  );
+};
+
 export default function BitacoraPage() {
   const dispatch = useDispatch();
   const rows = useSelector(selectBitacora);
@@ -43,7 +98,7 @@ export default function BitacoraPage() {
     const needle = search.trim().toLowerCase();
     if (!needle) return rows;
     return rows.filter((entry) =>
-      [entry.accion, entry.modelo, entry.usuario?.nombre_completo]
+      [entry.descripcion, entry.tabla_afectada, entry.usuario?.nombre_completo, entry.accion]
         .filter(Boolean)
         .some((field) => field.toLowerCase().includes(needle))
     );
@@ -55,8 +110,12 @@ export default function BitacoraPage() {
       header: 'Usuario',
       render: (row) => row.usuario?.nombre_completo || row.usuario_nombre || 'Sistema',
     },
-    { header: 'Acción', accessor: 'accion' },
-    { header: 'Detalle', render: (row) => row.modelo ?? row.detalle ?? '-' },
+    {
+      header: 'Evento',
+      render: (row) => actionLabels[row.accion?.toUpperCase()] || row.accion || 'Registro',
+    },
+    { header: 'Tabla', accessor: 'tabla_afectada' },
+    { header: 'Detalle', render: (row) => formatDetail(row) },
   ];
 
   const perPage = meta?.per_page || 15;

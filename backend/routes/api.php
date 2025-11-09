@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DocenteController;
+use App\Http\Controllers\Api\AdministrativoController;
 use App\Http\Controllers\Api\MateriaController;
 use App\Http\Controllers\Api\AulaController;
 use App\Http\Controllers\Api\GrupoController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Api\HorarioFranjaController;
 // Rutas públicas
 // Corrección: Rate limiting contra fuerza bruta (5 intentos por minuto)
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+Route::post('/password/recuperar', [AuthController::class, 'recoverPassword'])->middleware('throttle:5,1');
 
 
 // Rutas protegidas (requieren token)
@@ -28,12 +30,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+    Route::post('/user/password', [AuthController::class, 'changePassword']);
 
     // CRUD Entidades Maestras
     Route::apiResource('docentes', DocenteController::class);
     Route::apiResource('materias', MateriaController::class);
     Route::apiResource('aulas', AulaController::class);
     Route::apiResource('grupos', GrupoController::class);
+    Route::apiResource('administrativos', AdministrativoController::class);
     Route::apiResource('periodos', PeriodoController::class);
     Route::apiResource('bloques-horarios', BloqueHorarioController::class);
 
@@ -78,10 +82,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/metricas', [App\Http\Controllers\Api\MetricasController::class, 'obtenerMetricasGenerales']);
 });
 
-Route::fallback(function () {
-    return response()->json(['error' => 'Endpoint no encontrado'], 404);
-});
-
-
-    // Registro de usuarios solo para cuentas autenticadas (verifica rol en controller)
-    Route::post('/register', [UsuarioController::class, 'store'])->middleware('throttle:5,1');
+    Route::fallback(function () {
+        return response()->json(['error' => 'Endpoint no encontrado'], 404);
+    });

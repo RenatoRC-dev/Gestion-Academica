@@ -12,7 +12,10 @@ import {
     FaTable,
     FaUser,
     FaUsers,
+    FaUserTie,
 } from 'react-icons/fa';
+import Modal from './Modal.jsx';
+import { useToast } from './ToastProvider.jsx';
 
 const Item = ({ to, icon: Icon, children, onClick, collapsed }) => (
     <NavLink
@@ -30,12 +33,25 @@ const Item = ({ to, icon: Icon, children, onClick, collapsed }) => (
 );
 
 export default function AppShell({ children }) {
-    const { user, logout } = useAuth();
+    const { user, logout, changePassword } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const prefersDesktop = () => (typeof window === 'undefined' ? true : window.innerWidth >= 1024);
     const [isDesktop, setIsDesktop] = useState(prefersDesktop);
     const [sidebarOpen, setSidebarOpen] = useState(prefersDesktop);
+    const toast = useToast();
+    const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({
+        current_password: '',
+        new_password: '',
+        confirm_password: '',
+    });
+    const [showPasswords, setShowPasswords] = useState({
+        current_password: false,
+        new_password: false,
+        confirm_password: false,
+    });
+    const [changingPassword, setChangingPassword] = useState(false);
 
     useEffect(() => {
         if (typeof window === 'undefined') return undefined;
@@ -56,6 +72,41 @@ export default function AppShell({ children }) {
     const onLogout = async () => {
         await logout();
         navigate('/login', { replace: true });
+    };
+
+    const togglePasswordVisibility = (field) => {
+        setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
+    };
+
+    const handlePasswordSubmit = async (event) => {
+        event.preventDefault();
+        if (passwordForm.new_password !== passwordForm.confirm_password) {
+            toast.push('La confirmación no coincide', 'error');
+            return;
+        }
+        setChangingPassword(true);
+        try {
+            const response = await changePassword(
+                passwordForm.current_password,
+                passwordForm.new_password,
+                passwordForm.confirm_password
+            );
+            if (response?.success) {
+                toast.push(response.message || 'Contraseña actualizada', 'success');
+                setPasswordModalOpen(false);
+                setPasswordForm({
+                    current_password: '',
+                    new_password: '',
+                    confirm_password: '',
+                });
+            } else {
+                toast.push(response?.message || 'No se pudo cambiar la contraseña', 'error');
+            }
+        } catch (error) {
+            toast.push(error?.response?.data?.message || error?.message || 'Error cambiando la contraseña', 'error');
+        } finally {
+            setChangingPassword(false);
+        }
     };
 
     const closeSidebarOnMobile = () => {
@@ -96,14 +147,16 @@ export default function AppShell({ children }) {
     ];
 
     if (isAdmin) {
-        navSections.push({
-            title: 'ADMINISTRACIÓN',
-            items: [
-                { to: '/docentes', icon: FaChalkboardTeacher, label: 'Docentes' },
-                { to: '/materias', icon: FaListAlt, label: 'Materias' },
-                { to: '/aulas', icon: FaSchool, label: 'Aulas' },
-                { to: '/grupos', icon: FaUsers, label: 'Grupos' },
-                { to: '/periodos', icon: FaCalendarAlt, label: 'Períodos' },
+            navSections.push({
+                title: 'ADMINISTRACIÓN',
+                items: [
+                    { to: '/docentes', icon: FaChalkboardTeacher, label: 'Docentes' },
+                    { to: '/administrativos', icon: FaUserTie, label: 'Administrativos' },
+                    { to: '/materias', icon: FaListAlt, label: 'Materias' },
+                    { to: '/aulas', icon: FaSchool, label: 'Aulas' },
+                    { to: '/grupos', icon: FaUsers, label: 'Grupos' },
+                    { to: '/bloques', icon: FaCalendarAlt, label: 'Bloques horario' },
+                    { to: '/periodos', icon: FaCalendarAlt, label: 'Períodos' },
                 { to: '/usuarios', icon: FaUser, label: 'Usuarios' },
                 { to: '/roles', icon: FaUsers, label: 'Roles' },
                 { to: '/bitacora', icon: FaListAlt, label: 'Bitácora' },
@@ -144,6 +197,23 @@ export default function AppShell({ children }) {
                     <span className="appshell-user-name">{user?.nombre_completo || user?.email}</span>
                     <button
                         type="button"
+                        className="appshell-user-link"
+                        onClick={() => setPasswordModalOpen(true)}
+                        title="Cambiar contraseña"
+                        aria-label="Cambiar contraseña"
+                        style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#2563eb',
+                            fontSize: '0.875rem',
+                            marginLeft: '1rem',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Cambiar contraseña
+                    </button>
+                    <button
+                        type="button"
                         className="appshell-logout"
                         onClick={onLogout}
                         title="Cerrar sesión"
@@ -176,6 +246,137 @@ export default function AppShell({ children }) {
             <main className="appshell-content">{children}</main>
 
             <div className="appshell-overlay" onClick={closeSidebarOnMobile} role="presentation" />
+            <Modal
+                open={passwordModalOpen}
+                title="Cambiar contraseña"
+                onClose={() => setPasswordModalOpen(false)}
+            >
+                <form onSubmit={handlePasswordSubmit} className="form-layout">
+                    <div className="form-section">
+                        <p className="form-section-title">Seguridad</p>
+                        <div className="form-grid">
+                            <div className="form-field">
+                                <label>Contraseña actual</label>
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        className="input"
+                                        type={showPasswords.current_password ? 'text' : 'password'}
+                                        min="6"
+                                        value={passwordForm.current_password}
+                                        onChange={(e) =>
+                                            setPasswordForm((prev) => ({
+                                                ...prev,
+                                                current_password: e.target.value,
+                                            }))
+                                        }
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        style={{
+                                            position: 'absolute',
+                                            right: '0.75rem',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            border: 'none',
+                                            background: 'none',
+                                            color: '#2563eb',
+                                            fontSize: '0.75rem',
+                                            cursor: 'pointer',
+                                        }}
+                                        onClick={() => togglePasswordVisibility('current_password')}
+                                    >
+                                        {showPasswords.current_password ? 'Ocultar' : 'Mostrar'}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="form-field">
+                                <label>Nueva contraseña</label>
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        className="input"
+                                        type={showPasswords.new_password ? 'text' : 'password'}
+                                        min="6"
+                                        value={passwordForm.new_password}
+                                        onChange={(e) =>
+                                            setPasswordForm((prev) => ({
+                                                ...prev,
+                                                new_password: e.target.value,
+                                            }))
+                                        }
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        style={{
+                                            position: 'absolute',
+                                            right: '0.75rem',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            border: 'none',
+                                            background: 'none',
+                                            color: '#2563eb',
+                                            fontSize: '0.75rem',
+                                            cursor: 'pointer',
+                                        }}
+                                        onClick={() => togglePasswordVisibility('new_password')}
+                                    >
+                                        {showPasswords.new_password ? 'Ocultar' : 'Mostrar'}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="form-field">
+                                <label>Confirmar contraseña</label>
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        className="input"
+                                        type={showPasswords.confirm_password ? 'text' : 'password'}
+                                        min="6"
+                                        value={passwordForm.confirm_password}
+                                        onChange={(e) =>
+                                            setPasswordForm((prev) => ({
+                                                ...prev,
+                                                confirm_password: e.target.value,
+                                            }))
+                                        }
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        style={{
+                                            position: 'absolute',
+                                            right: '0.75rem',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            border: 'none',
+                                            background: 'none',
+                                            color: '#2563eb',
+                                            fontSize: '0.75rem',
+                                            cursor: 'pointer',
+                                        }}
+                                        onClick={() => togglePasswordVisibility('confirm_password')}
+                                    >
+                                        {showPasswords.confirm_password ? 'Ocultar' : 'Mostrar'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="form-actions">
+                        <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => setPasswordModalOpen(false)}
+                            disabled={changingPassword}
+                        >
+                            Cancelar
+                        </button>
+                        <button type="submit" className="btn-primary" disabled={changingPassword}>
+                            {changingPassword ? 'Guardando...' : 'Guardar'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }

@@ -37,6 +37,7 @@ class GrupoController extends Controller
                 'periodo_id' => 'required|exists:periodo_academico,id',
                 'codigo' => 'required|string|max:50',
                 'cantidad_maxima' => 'required|integer|min:1|max:100',
+                'cantidad_minima' => 'nullable|integer|min:0|max:100',
             ], [
                 'codigo.required' => 'El código es requerido',
                 'cantidad_maxima.required' => 'La cantidad máxima es requerida',
@@ -64,6 +65,7 @@ class GrupoController extends Controller
                 'periodo_academico_id' => $validated['periodo_id'],
                 'codigo_grupo' => $validated['codigo'],
                 'cupo_maximo' => $validated['cantidad_maxima'],
+                'cupo_minimo' => $validated['cantidad_minima'] ?? null,
             ]);
 
             DB::commit();
@@ -107,6 +109,7 @@ class GrupoController extends Controller
             $validated = $request->validate([
                 'codigo' => 'sometimes|string|max:50',
                 'cantidad_maxima' => 'sometimes|integer|min:1|max:100',
+                'cantidad_minima' => 'nullable|integer|min:0|max:100',
             ]);
 
             DB::beginTransaction();
@@ -114,6 +117,7 @@ class GrupoController extends Controller
             $grupo->update(array_filter([
                 'codigo_grupo' => $validated['codigo'] ?? null,
                 'cupo_maximo' => $validated['cantidad_maxima'] ?? null,
+                'cupo_minimo' => $validated['cantidad_minima'] ?? null,
             ], fn($val) => $val !== null));
 
             DB::commit();

@@ -7,6 +7,7 @@ use App\Models\Usuario;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -98,6 +99,83 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener datos del usuario',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function changePassword(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'current_password' => 'required|string',
+                'new_password' => 'required|string|min:6|confirmed',
+            ], [
+                'current_password.required' => 'La contraseña actual es requerida',
+                'new_password.required' => 'La nueva contraseña es requerida',
+                'new_password.min' => 'La nueva contraseña debe tener al menos 6 caracteres',
+                'new_password.confirmed' => 'La confirmación no coincide',
+            ]);
+
+            $user = $request->user();
+
+            if (!$user || !Hash::check($validated['current_password'], $user->password_hash)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La contraseña actual es incorrecta'
+                ], 422);
+            }
+
+            $user->update([
+                'password_hash' => bcrypt($validated['new_password']),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Contraseña actualizada exitosamente'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar la contraseña',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function recoverPassword(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'email' => 'required|email',
+            ], [
+                'email.required' => 'El correo es requerido',
+                'email.email' => 'El correo debe ser válido',
+            ]);
+
+            $user = Usuario::where('email', $validated['email'])->first();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró un usuario con ese correo'
+                ], 404);
+            }
+
+            $temporaryPassword = Str::random(8);
+            $user->update([
+                'password_hash' => bcrypt($temporaryPassword),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Se ha generado una contraseña temporal',
+                'password_temporal' => $temporaryPassword,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al recuperar la contraseña',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -37,6 +37,9 @@ class AulaController extends Controller
                 'capacidad' => 'required|integer|min:1|max:200',
                 'ubicacion' => 'nullable|string|max:255',
                 'piso' => 'nullable|integer',
+                'equipamiento' => 'nullable|string',
+                'es_virtual' => 'nullable|boolean',
+                'activo' => 'nullable|boolean',
             ], [
                 'nombre.required' => 'El nombre es requerido',
                 'nombre.unique' => 'Este nombre ya existe',
@@ -49,7 +52,9 @@ class AulaController extends Controller
                 'codigo_aula' => $validated['nombre'],
                 'capacidad' => $validated['capacidad'],
                 'ubicacion' => $validated['ubicacion'] ?? null,
-                'piso' => $validated['piso'] ?? 1,
+                'piso' => $validated['piso'] ?? null,
+                'equipamiento' => $validated['equipamiento'] ?? null,
+                'es_virtual' => $validated['es_virtual'] ?? false,
             ]);
 
             DB::commit();
@@ -93,6 +98,9 @@ class AulaController extends Controller
                 'nombre' => 'sometimes|string|max:255|unique:aula,codigo_aula,' . $aula->id,
                 'capacidad' => 'sometimes|integer|min:1|max:200',
                 'ubicacion' => 'nullable|string|max:255',
+                'equipamiento' => 'nullable|string',
+                'es_virtual' => 'nullable|boolean',
+                'activo' => 'nullable|boolean',
                 'piso' => 'nullable|integer',
             ]);
 
@@ -102,6 +110,9 @@ class AulaController extends Controller
                 'codigo_aula' => $validated['nombre'] ?? null,
                 'capacidad' => $validated['capacidad'] ?? null,
                 'ubicacion' => $validated['ubicacion'] ?? null,
+                'equipamiento' => $validated['equipamiento'] ?? null,
+                'es_virtual' => $validated['es_virtual'] ?? null,
+                'activo' => $validated['activo'] ?? null,
                 'piso' => $validated['piso'] ?? null,
             ], fn($val) => $val !== null));
 

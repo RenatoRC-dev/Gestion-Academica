@@ -1,5 +1,5 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import authService from '../services/authService.js';
 
 const AuthContext = createContext(null);
@@ -76,7 +76,17 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const value = useMemo(() => ({ token, user, loading, login, logout }), [token, user, loading]);
+  const changePassword = useCallback(
+    async (currentPassword, newPassword, confirmPassword) => {
+      return authService.changePassword(currentPassword, newPassword, confirmPassword);
+    },
+    []
+  );
+
+  const value = useMemo(
+    () => ({ token, user, loading, login, logout, changePassword }),
+    [token, user, loading, changePassword]
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

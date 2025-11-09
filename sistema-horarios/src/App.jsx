@@ -6,7 +6,6 @@ import AppShell from './components/AppShell.jsx';
 
 // Páginas
 import LoginPage from './pages/auth/LoginPage.jsx';
-import RegisterPage from './pages/auth/RegisterPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 
@@ -22,6 +21,7 @@ import AulasPage from './pages/academica/AulasPage.jsx';
 import MateriasPage from './pages/academica/MateriasPage.jsx';
 import GruposPage from './pages/academica/GruposPage.jsx';
 import BloquesPage from './pages/academica/BloquesPage.jsx';
+import AdministrativosPage from './pages/academica/AdministrativosPage.jsx';
 
 // Páginas de Horarios
 import VisualizarHorarioPage from './pages/horarios/VisualizarHorarioPage.jsx';
@@ -72,15 +72,6 @@ function AuthContent() {
                                 : <LoginPage />
                         }
                     />
-                    <Route
-                        path="/registro"
-                        element={
-                            user
-                                ? <Navigate to="/dashboard" replace />
-                                : <RegisterPage />
-                        }
-                    />
-
                     {/* Rutas protegidas base */}
                     <Route element={<ProtectedRoute />}>
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -109,6 +100,7 @@ function AuthContent() {
                         <Route path="/materias" element={<MateriasPage />} />
                         <Route path="/grupos" element={<GruposPage />} />
                         <Route path="/bloques" element={<BloquesPage />} />
+                        <Route path="/administrativos" element={<AdministrativosPage />} />
                         <Route path="/horarios/generar" element={<GenerarHorarioPage />} />
                     </Route>
 
@@ -119,7 +111,5 @@ function AuthContent() {
         </>
     );
 }
-
-
 
 
