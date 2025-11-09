@@ -1,173 +1,116 @@
 import { useNavigate } from 'react-router-dom';
 import { FaChalkboardTeacher, FaBook, FaBuilding, FaUsers, FaCalendarAlt, FaUserTie } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext.jsx';
-import { ROLES } from '../utils/roles';
 import { useState, useEffect } from 'react';
 import metricasService from '../services/metricasService.js';
 
-const MetricCard = ({ icon, title, value, onClick }) => (
-    <div
-        onClick={onClick}
-        className="bg-white shadow-md rounded-lg p-4 flex items-center space-x-4 cursor-pointer hover:scale-105 transition-transform"
-    >
-        <div className="text-3xl text-primary">{icon}</div>
-        <div>
-            <p className="text-gray-500 text-sm">{title}</p>
-            <p className="text-2xl font-bold">{value}</p>
-        </div>
-    </div>
+const MetricCard = ({ icon, title, value, description, onClick }) => (
+  <button type="button" onClick={onClick} className="metric-card">
+    <span className="metric-card-icon">{icon}</span>
+    <span className="metric-card-body">
+      <span className="metric-card-label">{title}</span>
+      <span className="metric-card-value">{value}</span>
+      <span className="metric-card-description">{description}</span>
+    </span>
+  </button>
 );
 
 export default function Dashboard() {
-    const navigate = useNavigate();
-    const { user } = useAuth();
-    const [metricas, setMetricas] = useState({
-        total_docentes: 0,
-        total_materias: 0,
-        total_aulas: 0,
-        total_grupos: 0,
-        total_periodos: 0,
-        total_usuarios: 0
-    });
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+  const navigate = useNavigate();
+  const [metricas, setMetricas] = useState({
+    total_docentes: 0,
+    total_materias: 0,
+    total_aulas: 0,
+    total_grupos: 0,
+    total_periodos: 0,
+    total_usuarios: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-    useEffect(() => {
-        const fetchMetricas = async () => {
-            try {
-                setLoading(true);
-                const data = await metricasService.obtenerMetricasGenerales();
-                setMetricas(data);
-                setError(null);
-            } catch (err) {
-                console.error('Error al obtener métricas:', err);
-                setError(err.message || 'Error desconocido');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchMetricas();
-    }, []);
-
-    const roles = (user?.roles || []).map(r => typeof r === 'string' ? r.toLowerCase() : r.nombre?.toLowerCase());
-    const isAdmin = roles.includes(ROLES.ADMIN);
-
-    const handleRetry = () => {
-        window.location.reload();
+  useEffect(() => {
+    const fetchMetricas = async () => {
+      try {
+        setLoading(true);
+        const data = await metricasService.obtenerMetricasGenerales();
+        setMetricas(data);
+        setError(null);
+      } catch (err) {
+        setError(err.message || 'Error desconocido');
+      } finally {
+        setLoading(false);
+      }
     };
 
-    if (loading) {
-        return (
-            <div className="container mx-auto p-4 flex justify-center items-center">
-                <span>Cargando métricas...</span>
-            </div>
-        );
-    }
+    fetchMetricas();
+  }, []);
 
-    if (error) {
-        return (
-            <div className="container mx-auto p-4 flex flex-col items-center justify-center">
-                <h2 className="text-xl text-red-600 mb-4">Error al cargar métricas</h2>
-                <p className="mb-4 text-gray-600">{error}</p>
-                <button
-                    onClick={handleRetry}
-                    className="btn btn-primary"
-                >
-                    Reintentar
-                </button>
-            </div>
-        );
-    }
+  const handleRetry = () => {
+    window.location.reload();
+  };
 
+  if (loading) {
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-6">Dashboard Académico</h1>
-
-            <section className="mb-6">
-                <h2 className="text-lg font-semibold mb-4">Métricas del Sistema</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                    <MetricCard
-                        icon={<FaChalkboardTeacher />}
-                        title="Docentes"
-                        value={metricas.total_docentes}
-                        onClick={() => navigate('/docentes')}
-                    />
-                    <MetricCard
-                        icon={<FaBook />}
-                        title="Materias"
-                        value={metricas.total_materias}
-                        onClick={() => navigate('/materias')}
-                    />
-                    <MetricCard
-                        icon={<FaBuilding />}
-                        title="Aulas"
-                        value={metricas.total_aulas}
-                        onClick={() => navigate('/aulas')}
-                    />
-                    <MetricCard
-                        icon={<FaUsers />}
-                        title="Grupos"
-                        value={metricas.total_grupos}
-                        onClick={() => navigate('/grupos')}
-                    />
-                    <MetricCard
-                        icon={<FaCalendarAlt />}
-                        title="Períodos"
-                        value={metricas.total_periodos}
-                        onClick={() => navigate('/periodos')}
-                    />
-                    <MetricCard
-                        icon={<FaUserTie />}
-                        title="Usuarios"
-                        value={metricas.total_usuarios}
-                        onClick={() => navigate('/usuarios')}
-                    />
-                </div>
-            </section>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <h2 className="text-lg font-semibold mb-4">Actividad Reciente</h2>
-                    <div className="bg-white shadow-md rounded-lg p-4">
-                        <p className="text-gray-500">No hay actividad reciente registrada.</p>
-                    </div>
-                </div>
-
-                <div>
-                    <h2 className="text-lg font-semibold mb-4">Accesos Rápidos</h2>
-                    <div className="bg-white shadow-md rounded-lg p-4 grid grid-cols-2 gap-4">
-                        {isAdmin && (
-                            <>
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={() => navigate('/horarios/generar')}
-                                >
-                                    Generar Horarios
-                                </button>
-                                <button
-                                    className="btn btn-outline"
-                                    onClick={() => navigate('/usuarios')}
-                                >
-                                    Gestionar Usuarios
-                                </button>
-                                <button
-                                    className="btn btn-outline"
-                                    onClick={() => navigate('/bitacora')}
-                                >
-                                    Ver Bitácora
-                                </button>
-                            </>
-                        )}
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => navigate('/asistencias/escanear-qr')}
-                        >
-                            Registrar Asistencia
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+      <div className="container mx-auto p-4 flex justify-center items-center">
+        <span>Cargando métricas…</span>
+      </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-4 flex flex-col items-center justify-center">
+        <h2 className="text-xl text-red-600 mb-4">Error al cargar métricas</h2>
+        <p className="mb-4 text-gray-600">{error}</p>
+        <button onClick={handleRetry} className="btn-primary">
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  const cards = [
+    { icon: <FaChalkboardTeacher />, title: 'Docentes', value: metricas.total_docentes, description: 'Registrados', to: '/docentes' },
+    { icon: <FaBook />, title: 'Materias', value: metricas.total_materias, description: 'En catálogo', to: '/materias' },
+    { icon: <FaBuilding />, title: 'Aulas', value: metricas.total_aulas, description: 'Registradas', to: '/aulas' },
+    { icon: <FaUsers />, title: 'Grupos', value: metricas.total_grupos, description: 'Programados', to: '/grupos' },
+    { icon: <FaCalendarAlt />, title: 'Períodos', value: metricas.total_periodos, description: 'Activos', to: '/periodos' },
+    { icon: <FaUserTie />, title: 'Usuarios', value: metricas.total_usuarios, description: 'Con acceso', to: '/usuarios' },
+  ];
+
+  return (
+    <div className="container mx-auto p-4 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Dashboard académico</h1>
+        <p className="text-gray-500">Resumen general de la gestión actual</p>
+      </div>
+
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-gray-800">Métricas del sistema</h2>
+        <div className="metrics-grid">
+          {cards.map((card) => (
+            <MetricCard
+              key={card.title}
+              icon={card.icon}
+              title={card.title}
+              value={card.value}
+              description={card.description}
+              onClick={() => navigate(card.to)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">Actividad reciente</h2>
+            <p className="text-sm text-gray-500">Los eventos se mostrarán aquí en cuanto existan</p>
+          </div>
+        </div>
+        <div className="text-gray-500 text-sm">
+          No hay actividad registrada aún. Cuando se generen movimientos los verás aquí.
+        </div>
+      </section>
+    </div>
+  );
 }

@@ -1,278 +1,255 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import DataTable from '../../components/DataTable.jsx';
+import Modal from '../../components/Modal.jsx';
+import PageHeader from '../../components/PageHeader.jsx';
+import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import Alert from '../../components/Alert.jsx';
 import bloqueService from '../../services/bloqueService.js';
 import api from '../../services/api.js';
 
-function BloquesPage() {
-    const [bloques, setBloques] = useState([]);
-    const [dias, setDias] = useState([]);
-    const [horarios, setHorarios] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [showModal, setShowModal] = useState(false);
-    const [editando, setEditando] = useState(null);
-    const [formData, setFormData] = useState({
-        dia_id: '',
-        horario_id: '',
-        activo: true
+const emptyForm = { dia_id: '', horario_id: '', activo: true };
+
+export default function BloquesPage() {
+  const [bloques, setBloques] = useState([]);
+  const [dias, setDias] = useState([]);
+  const [horarios, setHorarios] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState('');
+
+  const [openForm, setOpenForm] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [confirm, setConfirm] = useState({ open: false, id: null });
+
+  useEffect(() => {
+    cargarBloques();
+    cargarCatalogos();
+  }, []);
+
+  const cargarBloques = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/bloques-horarios');
+      if (response.data.success) {
+        setBloques(response.data.data.data || response.data.data || []);
+      }
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar bloques horarios');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarCatalogos = async () => {
+    try {
+      const [resDias, resHorarios] = await Promise.all([api.get('/dias'), api.get('/horarios-franja')]);
+      if (resDias.data.success) setDias(resDias.data.data || []);
+      if (resHorarios.data.success) setHorarios(resHorarios.data.data || []);
+    } catch {
+      // ignorar
+    }
+  };
+
+  const filtered = bloques.filter((bloque) => {
+    if (!search.trim()) return true;
+    const needle = search.toLowerCase();
+    const dia = bloque.dia?.nombre?.toLowerCase() || '';
+    const horario = `${bloque.horario?.hora_inicio || ''} ${bloque.horario?.hora_fin || ''}`.toLowerCase();
+    return dia.includes(needle) || horario.includes(needle);
+  });
+
+  const columns = [
+    { header: 'Día', render: (row) => row.dia?.nombre ?? '-' },
+    {
+      header: 'Horario',
+      render: (row) =>
+        row.horario ? `${row.horario.hora_inicio} - ${row.horario.hora_fin}` : '-',
+    },
+    {
+      header: 'Estado',
+      render: (row) => (
+        <span className={row.activo ? 'text-green-600 font-semibold' : 'text-gray-500'}>
+          {row.activo ? 'Activo' : 'Inactivo'}
+        </span>
+      ),
+      align: 'center',
+    },
+  ];
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setOpenForm(true);
+  };
+
+  const openEdit = (bloque) => {
+    setEditing(bloque);
+    setForm({
+      dia_id: bloque.dia_id || '',
+      horario_id: bloque.horario_id || '',
+      activo: bloque.activo !== undefined ? bloque.activo : true,
     });
+    setOpenForm(true);
+  };
 
-    useEffect(() => {
-        cargarBloques();
-        cargarCatalogos();
-    }, []);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
 
-    const cargarBloques = async () => {
-        setLoading(true);
-        try {
-            const response = await api.get('/bloques-horarios');
-            if (response.data.success) {
-                setBloques(response.data.data.data || response.data.data || []);
-            }
-        } catch (err) {
-            setError('Error al cargar bloques horarios');
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    try {
+      if (editing) {
+        await bloqueService.update(editing.id, form);
+      } else {
+        await bloqueService.create(form);
+      }
+      setOpenForm(false);
+      setForm(emptyForm);
+      cargarBloques();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error al guardar bloque horario');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const cargarCatalogos = async () => {
-        try {
-            const [resDias, resHorarios] = await Promise.all([
-                api.get('/dias'),
-                api.get('/horarios-franja')
-            ]);
+  const confirmDelete = async () => {
+    if (!confirm.id) return;
+    setLoading(true);
+    try {
+      await bloqueService.remove(confirm.id);
+      cargarBloques();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error al eliminar bloque horario');
+    } finally {
+      setLoading(false);
+      setConfirm({ open: false, id: null });
+    }
+  };
 
-            if (resDias.data.success) {
-                setDias(resDias.data.data || []);
-            }
-            if (resHorarios.data.success) {
-                setHorarios(resHorarios.data.data || []);
-            }
-        } catch (err) {
-            console.error('Error al cargar catálogos:', err);
-        }
-    };
+  const perPage = filtered.length || 1;
 
-    const abrirModal = (bloque = null) => {
-        if (bloque) {
-            setEditando(bloque);
-            setFormData({
-                dia_id: bloque.dia_id || '',
-                horario_id: bloque.horario_id || '',
-                activo: bloque.activo !== undefined ? bloque.activo : true
-            });
-        } else {
-            setEditando(null);
-            setFormData({
-                dia_id: '',
-                horario_id: '',
-                activo: true
-            });
-        }
-        setShowModal(true);
-    };
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Bloques horarios" subtitle="Define la disponibilidad de franjas">
+        <button type="button" className="btn-primary" onClick={openCreate}>
+          + Nuevo bloque
+        </button>
+      </PageHeader>
 
-    const cerrarModal = () => {
-        setShowModal(false);
-        setEditando(null);
-        setFormData({
-            dia_id: '',
-            horario_id: '',
-            activo: true
-        });
-    };
+      {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError(null);
+      <DataTable
+        columns={columns}
+        data={filtered}
+        loading={loading}
+        currentPage={1}
+        totalPages={1}
+        perPage={perPage}
+        total={filtered.length}
+        onPageChange={() => {}}
+        onPerPageChange={null}
+        searchTerm={search}
+        onSearchChange={setSearch}
+        emptyMessage="Aún no hay bloques horarios registrados"
+        actions={(row) => (
+          <>
+            <button type="button" className="table-action-button" onClick={() => openEdit(row)}>
+              Editar
+            </button>
+            <button
+              type="button"
+              className="table-action-button danger"
+              onClick={() => setConfirm({ open: true, id: row.id })}
+            >
+              Eliminar
+            </button>
+          </>
+        )}
+      />
 
-        try {
-            if (editando) {
-                await bloqueService.update(editando.id, formData);
-            } else {
-                await bloqueService.create(formData);
-            }
-            cargarBloques();
-            cerrarModal();
-        } catch (err) {
-            setError(err.response?.data?.message || 'Error al guardar bloque horario');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleDelete = async (id) => {
-        if (!confirm('¿Estás seguro de eliminar este bloque horario?')) return;
-
-        setLoading(true);
-        setError(null);
-
-        try {
-            await bloqueService.remove(id);
-            cargarBloques();
-        } catch (err) {
-            setError(err.response?.data?.message || 'Error al eliminar bloque horario');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">⏰ Bloques Horarios</h1>
-                <button
-                    onClick={() => abrirModal()}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+      <Modal
+        open={openForm}
+        title={editing ? 'Editar bloque horario' : 'Nuevo bloque horario'}
+        onClose={() => setOpenForm(false)}
+      >
+        <form onSubmit={handleSubmit} className="form-layout">
+          <div className="form-section">
+            <p className="form-section-title">Asignación</p>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>
+                  Día <span className="text-red-500">*</span>
+                </label>
+                <select
+                  className="input"
+                  value={form.dia_id}
+                  onChange={(e) => setForm((prev) => ({ ...prev, dia_id: e.target.value }))}
+                  required
                 >
-                    + Nuevo Bloque
-                </button>
-            </div>
-
-            {error && (
-                <div className="bg-red-50 p-3 rounded text-sm text-red-700">
-                    {error}
+                  <option value="">Selecciona un día</option>
+                  {dias.map((dia) => (
+                    <option key={dia.id} value={dia.id}>
+                      {dia.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-field">
+                <label>
+                  Horario <span className="text-red-500">*</span>
+                </label>
+                <select
+                  className="input"
+                  value={form.horario_id}
+                  onChange={(e) => setForm((prev) => ({ ...prev, horario_id: e.target.value }))}
+                  required
+                >
+                  <option value="">Selecciona un horario</option>
+                  {horarios.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.hora_inicio} - {h.hora_fin}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-field">
+                <label>Estado</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="bloque-activo"
+                    type="checkbox"
+                    checked={form.activo}
+                    onChange={(e) => setForm((prev) => ({ ...prev, activo: e.target.checked }))}
+                  />
+                  <label htmlFor="bloque-activo" className="text-sm text-gray-600">
+                    Bloque activo
+                  </label>
                 </div>
-            )}
-
-            <div className="bg-white shadow rounded-lg p-6">
-                {loading ? (
-                    <div className="py-10 text-center">Cargando…</div>
-                ) : bloques.length === 0 ? (
-                    <div className="py-10 text-center text-gray-600">No hay bloques horarios registrados</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="bg-gray-50 text-gray-600 text-left">
-                                    <th className="p-3">#</th>
-                                    <th className="p-3">Día</th>
-                                    <th className="p-3">Horario</th>
-                                    <th className="p-3">Activo</th>
-                                    <th className="p-3">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {bloques.map((bloque, idx) => (
-                                    <tr key={bloque.id} className="border-t hover:bg-gray-50">
-                                        <td className="p-3">{idx + 1}</td>
-                                        <td className="p-3">{bloque.dia?.nombre || '—'}</td>
-                                        <td className="p-3">
-                                            {bloque.horario?.hora_inicio} - {bloque.horario?.hora_fin}
-                                        </td>
-                                        <td className="p-3">
-                                            <span className={`px-2 py-1 rounded text-xs ${
-                                                bloque.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                                            }`}>
-                                                {bloque.activo ? 'Sí' : 'No'}
-                                            </span>
-                                        </td>
-                                        <td className="p-3 space-x-2">
-                                            <button
-                                                onClick={() => abrirModal(bloque)}
-                                                className="text-blue-600 hover:text-blue-800"
-                                            >
-                                                Editar
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(bloque.id)}
-                                                className="text-red-600 hover:text-red-800"
-                                            >
-                                                Eliminar
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+              </div>
             </div>
+          </div>
 
-            {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-                        <h2 className="text-2xl font-bold mb-4">
-                            {editando ? 'Editar Bloque Horario' : 'Nuevo Bloque Horario'}
-                        </h2>
+          <div className="form-actions">
+            <button type="button" className="btn-secondary" onClick={() => setOpenForm(false)}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary">
+              {editing ? 'Actualizar' : 'Crear'}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Día de la semana *
-                                </label>
-                                <select
-                                    className="w-full border border-gray-300 rounded-md p-2"
-                                    value={formData.dia_id}
-                                    onChange={(e) => setFormData({ ...formData, dia_id: e.target.value })}
-                                    required
-                                >
-                                    <option value="">Seleccione un día</option>
-                                    {dias.map((dia) => (
-                                        <option key={dia.id} value={dia.id}>
-                                            {dia.nombre}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Franja horaria *
-                                </label>
-                                <select
-                                    className="w-full border border-gray-300 rounded-md p-2"
-                                    value={formData.horario_id}
-                                    onChange={(e) => setFormData({ ...formData, horario_id: e.target.value })}
-                                    required
-                                >
-                                    <option value="">Seleccione una franja</option>
-                                    {horarios.map((horario) => (
-                                        <option key={horario.id} value={horario.id}>
-                                            {horario.hora_inicio} - {horario.hora_fin}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    id="activo"
-                                    checked={formData.activo}
-                                    onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
-                                    className="mr-2"
-                                />
-                                <label htmlFor="activo" className="text-sm text-gray-700">
-                                    Bloque activo
-                                </label>
-                            </div>
-
-                            <div className="flex justify-end space-x-3 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={cerrarModal}
-                                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                                >
-                                    {loading ? 'Guardando...' : 'Guardar'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+      <ConfirmDialog
+        open={confirm.open}
+        title="Eliminar bloque"
+        message="Esta acción eliminará el bloque seleccionado. ¿Continuar?"
+        onCancel={() => setConfirm({ open: false, id: null })}
+        onConfirm={confirmDelete}
+      />
+    </div>
+  );
 }
-
-export default BloquesPage;

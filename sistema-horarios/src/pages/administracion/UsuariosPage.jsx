@@ -1,10 +1,11 @@
 // src/pages/administracion/UsuariosPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import DataTable from '../../components/DataTable.jsx';
 import Modal from '../../components/Modal.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
-import SearchBar from '../../components/SearchBar.jsx';
+import Alert from '../../components/Alert.jsx';
 import { useToast } from '../../components/ToastProvider.jsx';
 import {
   fetchUsuarios,
@@ -20,17 +21,20 @@ import {
   selectUsuariosDeleting,
   selectUsuariosDeleteError,
   selectUsuariosPasswordTemp,
+  clearUsuariosError,
   clearUsuariosSaveError,
   clearUsuariosDeleteError,
   clearUsuariosPasswordTemp,
 } from '../../store/slices/usuariosSlice.js';
 import UserRolesPanel from '../../components/UserRolesPanel.jsx';
 
+const emptyForm = { nombre_completo: '', email: '', activo: true };
+
 export default function UsuariosPage() {
   const dispatch = useDispatch();
   const toast = useToast();
 
-  const items = useSelector(selectUsuarios);
+  const usuarios = useSelector(selectUsuarios);
   const loading = useSelector(selectUsuariosLoading);
   const error = useSelector(selectUsuariosError);
   const meta = useSelector(selectUsuariosMeta);
@@ -41,21 +45,22 @@ export default function UsuariosPage() {
   const passwordTemp = useSelector(selectUsuariosPasswordTemp);
 
   const [page, setPage] = useState(1);
-  const [q, setQ] = useState('');
-  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [confirm, setConfirm] = useState({ open: false, target: null });
   const [rolesOpen, setRolesOpen] = useState(false);
   const [targetUser, setTargetUser] = useState(null);
-  const [confirm, setConfirm] = useState({ open: false, target: null });
-
-  const [form, setForm] = useState({ nombre_completo: '', email: '', activo: true });
 
   useEffect(() => {
     dispatch(fetchUsuarios({ page }));
   }, [dispatch, page]);
 
   useEffect(() => {
-    if (saveError?.message) toast.push(saveError.message, 'error');
+    if (saveError?.message) {
+      toast.push(saveError.message, 'error');
+    }
   }, [saveError, toast]);
 
   useEffect(() => {
@@ -73,220 +78,223 @@ export default function UsuariosPage() {
   }, [passwordTemp, dispatch, toast]);
 
   const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return items;
-    return items.filter((it) => JSON.stringify(it).toLowerCase().includes(s));
-  }, [q, items]);
+    const needle = search.trim().toLowerCase();
+    if (!needle) return usuarios;
+    return usuarios.filter((user) =>
+      [user.nombre_completo, user.email, user.roles?.map((r) => r.nombre).join(', ')]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(needle))
+    );
+  }, [search, usuarios]);
 
-  const openCreate = () => {
+  const perPage = meta?.per_page || 15;
+
+  const columns = [
+    { header: 'Nombre', accessor: 'nombre_completo', sortable: true },
+    { header: 'Correo', accessor: 'email' },
+    {
+      header: 'Roles',
+      render: (row) =>
+        Array.isArray(row.roles) && row.roles.length > 0
+          ? row.roles.map((r) => r.nombre).join(', ')
+          : 'Sin roles',
+    },
+    {
+      header: 'Estado',
+      render: (row) => (
+        <span className={row.activo ? 'text-green-600 font-semibold' : 'text-gray-500'}>
+          {row.activo ? 'Activo' : 'Inactivo'}
+        </span>
+      ),
+      align: 'center',
+    },
+  ];
+
+  const handleCreate = () => {
     setEditing(null);
-    setForm({ nombre_completo: '', email: '', activo: true });
+    setForm(emptyForm);
     dispatch(clearUsuariosSaveError());
-    setOpen(true);
+    setOpenForm(true);
   };
 
-  const openEdit = (row) => {
+  const handleEdit = (row) => {
     setEditing(row);
     setForm({
-      nombre_completo: row?.nombre_completo ?? '',
-      email: row?.email ?? '',
+      nombre_completo: row?.nombre_completo || '',
+      email: row?.email || '',
       activo: !!row?.activo,
     });
     dispatch(clearUsuariosSaveError());
-    setOpen(true);
+    setOpenForm(true);
   };
 
-  const onSubmit = async (e) => {
-    e?.preventDefault?.();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     if (!form.nombre_completo.trim() || !form.email.trim()) {
       toast.push('Nombre y correo son obligatorios', 'error');
       return;
     }
+
     try {
       if (editing) {
         await dispatch(updateUsuario({ id: editing.id, ...form })).unwrap();
         toast.push('Usuario actualizado', 'success');
       } else {
         await dispatch(createUsuario(form)).unwrap();
-        // El toast de contraseña temporal se muestra en el effect
       }
-      setOpen(false);
-      dispatch(fetchUsuarios({ page }));
+      setOpenForm(false);
+      setForm(emptyForm);
     } catch {}
   };
 
-  const requestDelete = (row) => {
-    setConfirm({ open: true, target: row });
-  };
-
-  const confirmDelete = async () => {
-    const row = confirm.target;
-    if (!row) return;
-    try {
-      await dispatch(deleteUsuario(row.id)).unwrap();
-      toast.push('Usuario eliminado', 'success');
-      setConfirm({ open: false, target: null });
-      dispatch(fetchUsuarios({ page }));
-    } catch {}
-  };
-
-  const onManageRoles = (row) => {
-    setTargetUser(row);
+  const handleRoles = (user) => {
+    setTargetUser(user);
     setRolesOpen(true);
   };
 
-  const Paginador = () => (
-    <div className="flex items-center justify-between mt-4 text-sm">
-      <div>
-        Mostrando {filtered.length} / {meta.total} (página {meta.current_page} de {meta.last_page})
-      </div>
-      <div className="space-x-2">
-        <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>
-          « Primera
-        </button>
-        <button
-          className="btn-secondary"
-          disabled={meta.current_page <= 1}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          ‹ Anterior
-        </button>
-        <button
-          className="btn-secondary"
-          disabled={meta.current_page >= meta.last_page}
-          onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-        >
-          Siguiente ›
-        </button>
-        <button
-          className="btn-secondary"
-          disabled={meta.current_page >= meta.last_page}
-          onClick={() => setPage(meta.last_page)}
-        >
-          Última »
-        </button>
-      </div>
-    </div>
-  );
+  const requestDelete = (user) => setConfirm({ open: true, target: user });
+
+  const confirmDelete = async () => {
+    const user = confirm.target;
+    if (!user) return;
+    try {
+      await dispatch(deleteUsuario(user.id)).unwrap();
+      toast.push('Usuario eliminado', 'success');
+      setConfirm({ open: false, target: null });
+    } catch {}
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader title="Usuarios" subtitle="Gestiona cuentas y permisos">
-        <button className="btn-primary" onClick={openCreate}>+ Nuevo usuario</button>
+        <button type="button" className="btn-primary" onClick={handleCreate}>
+          + Nuevo usuario
+        </button>
       </PageHeader>
 
-      <div className="card">
-        <div className="flex items-center justify-between">
-          <SearchBar className="max-w-sm" value={q} onChange={setQ} placeholder="Buscar por nombre, correo o rol" />
-          <span className="text-sm text-gray-500">Paginación del servidor</span>
-        </div>
+      {error && (
+        <Alert type="error" message={error} onClose={() => dispatch(clearUsuariosError())} />
+      )}
 
-        {error && <div className="bg-red-50 text-red-700 text-sm p-2 rounded mt-4">{error}</div>}
-
-        {loading ? (
-          <div className="py-10 text-center">Cargando…</div>
-        ) : filtered.length === 0 ? (
-          <div className="py-10 text-center text-gray-600">Sin registros</div>
-        ) : (
-          <div className="mt-4 divide-y rounded border bg-white">
-            <div className="grid grid-cols-12 px-3 py-2 text-xs font-semibold text-gray-600">
-              <div className="col-span-1">ID</div>
-              <div className="col-span-3">Nombre</div>
-              <div className="col-span-3">Correo</div>
-              <div className="col-span-3">Roles</div>
-              <div className="col-span-2 text-right">Acciones</div>
-            </div>
-            {filtered.map((it) => (
-              <div key={it.id} className="grid grid-cols-12 items-center px-3 py-2 text-sm">
-                <div className="col-span-1">#{it.id}</div>
-                <div className="col-span-3">{it.nombre_completo ?? '—'}</div>
-                <div className="col-span-3">{it.email ?? '—'}</div>
-                <div className="col-span-3 truncate">
-                  {Array.isArray(it.roles) ? it.roles.map((r) => r.nombre).join(', ') : '—'}
-                </div>
-                <div className="col-span-2 text-right space-x-2">
-                  <button className="btn-secondary" onClick={() => onManageRoles(it)}>Roles</button>
-                  <button className="btn-secondary" onClick={() => openEdit(it)}>Editar</button>
-                  <button className="btn-danger" disabled={deleting} onClick={() => requestDelete(it)}>
-                    {deleting && targetUser?.id === it.id ? 'Eliminando…' : 'Eliminar'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <Paginador />
-      </div>
-
-      {/* Modal crear/editar */}
-      <Modal
-        open={open}
-        title={editing ? 'Editar usuario' : 'Nuevo usuario'}
-        onClose={() => setOpen(false)}
-        footer={
+      <DataTable
+        columns={columns}
+        data={filtered}
+        loading={loading}
+        currentPage={meta?.page || page}
+        totalPages={meta?.last_page || 1}
+        perPage={perPage}
+        total={meta?.total ?? filtered.length}
+        onPageChange={setPage}
+        onPerPageChange={null}
+        searchTerm={search}
+        onSearchChange={setSearch}
+        emptyMessage="No hay usuarios registrados"
+        actions={(row) => (
           <>
-            <button className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>
-              Cancelar
+            <button type="button" className="table-action-button" onClick={() => handleRoles(row)}>
+              Roles
             </button>
-            <button className="btn-primary" onClick={onSubmit} disabled={saving}>
-              {saving ? 'Guardando…' : 'Guardar'}
+            <button type="button" className="table-action-button" onClick={() => handleEdit(row)}>
+              Editar
+            </button>
+            <button
+              type="button"
+              className="table-action-button danger"
+              onClick={() => requestDelete(row)}
+            >
+              Eliminar
             </button>
           </>
-        }
+        )}
+      />
+
+      <Modal
+        open={openForm}
+        title={editing ? 'Editar usuario' : 'Nuevo usuario'}
+        onClose={() => setOpenForm(false)}
       >
-        <form onSubmit={onSubmit} className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre completo *</label>
-              <input
-                className="input"
-                value={form.nombre_completo}
-                onChange={(e) => setForm((f) => ({ ...f, nombre_completo: e.target.value }))}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Correo *</label>
-              <input
-                type="email"
-                className="input"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                required
-              />
+        <form onSubmit={handleSubmit} className="form-layout">
+          <div className="form-section">
+            <p className="form-section-title">Datos principales</p>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>
+                  Nombre completo <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className="input"
+                  placeholder="María Pérez"
+                  value={form.nombre_completo}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, nombre_completo: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>
+                  Correo institucional <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className="input"
+                  type="email"
+                  placeholder="usuario@gestion.edu"
+                  value={form.email}
+                  onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Estado</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="usuario-activo"
+                    type="checkbox"
+                    checked={form.activo}
+                    onChange={(e) => setForm((prev) => ({ ...prev, activo: e.target.checked }))}
+                  />
+                  <label htmlFor="usuario-activo" className="text-sm text-gray-600">
+                    Usuario activo
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Activo</label>
-            <input
-              type="checkbox"
-              checked={!!form.activo}
-              onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
-            />
-          </div>
+
           {saveError?.errors && (
-            <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded">
-              {Object.entries(saveError.errors).map(([k, v]) => (
-                <div key={k}>
-                  <strong>{k}:</strong> {Array.isArray(v) ? v.join(', ') : String(v)}
+            <div className="bg-yellow-50 text-yellow-800 text-xs p-3 rounded">
+              {Object.entries(saveError.errors).map(([key, value]) => (
+                <div key={key}>
+                  <strong>{key}:</strong> {Array.isArray(value) ? value.join(', ') : String(value)}
                 </div>
               ))}
             </div>
           )}
+
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setOpenForm(false)}
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? 'Guardando...' : editing ? 'Actualizar' : 'Crear'}
+            </button>
+          </div>
         </form>
       </Modal>
 
-      {/* Panel de roles por usuario */}
       {rolesOpen && targetUser && (
         <UserRolesPanel open={rolesOpen} onClose={() => setRolesOpen(false)} user={targetUser} />
       )}
 
-      {/* Confirmación de eliminación */}
       <ConfirmDialog
         open={confirm.open}
         title="Eliminar usuario"
-        message={`¿Eliminar el usuario "${confirm.target?.nombre_completo ?? confirm.target?.email ?? ''}"? Esta acción no se puede deshacer.`}
+        message={`¿Deseas eliminar a "${confirm.target?.nombre_completo ?? confirm.target?.email ?? ''}"? Esta acción no se puede deshacer.`}
         loading={deleting}
         onCancel={() => setConfirm({ open: false, target: null })}
         onConfirm={confirmDelete}
@@ -294,4 +302,3 @@ export default function UsuariosPage() {
     </div>
   );
 }
-

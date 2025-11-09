@@ -1,208 +1,265 @@
-// src/pages/AulasPage.jsx
+// src/pages/academica/AulasPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import DataTable from '../../components/DataTable.jsx';
 import Modal from '../../components/Modal.jsx';
-import { useToast } from '../../components/ToastProvider.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
-import EmptyState from '../../components/EmptyState.jsx';
-import Loader from '../../components/Loader.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import Alert from '../../components/Alert.jsx';
+import { useToast } from '../../components/ToastProvider.jsx';
 import {
-    fetchAulas, createAula, updateAula, deleteAula,
-    selectAulas, selectAulasLoading, selectAulasError, selectAulasMeta,
-    selectAulasSaving, selectAulasSaveError, selectAulasDeleteError,
-    clearAulasSaveError, clearAulasDeleteError
+  fetchAulas,
+  createAula,
+  updateAula,
+  deleteAula,
+  selectAulas,
+  selectAulasLoading,
+  selectAulasError,
+  selectAulasMeta,
+  selectAulasSaving,
+  selectAulasSaveError,
+  selectAulasDeleteError,
+  clearAulasError,
+  clearAulasSaveError,
+  clearAulasDeleteError,
 } from '../../store/slices/aulasSlice.js';
 
-function AulasPage() {
-    const dispatch = useDispatch();
-    const toast = useToast();
-    const items = useSelector(selectAulas);
-    const loading = useSelector(selectAulasLoading);
-    const error = useSelector(selectAulasError);
-    const meta = useSelector(selectAulasMeta);
-    const saving = useSelector(selectAulasSaving);
-    const saveError = useSelector(selectAulasSaveError);
-    const deleteError = useSelector(selectAulasDeleteError);
+const emptyForm = { nombre: '', capacidad: 1, ubicacion: '', piso: 1 };
 
-    const [page, setPage] = useState(1);
-    const [q, setQ] = useState('');
-    const [open, setOpen] = useState(false);
-    const [confirm, setConfirm] = useState({ open: false, row: null });
-    const [editing, setEditing] = useState(null);
-    // Backend usa nombre (que mapea a codigo_aula), capacidad, ubicacion?, piso?
-    const [form, setForm] = useState({ nombre: '', capacidad: 1, ubicacion: '', piso: 1 });
+export default function AulasPage() {
+  const dispatch = useDispatch();
+  const toast = useToast();
 
-    useEffect(() => { dispatch(fetchAulas({ page })); }, [dispatch, page]);
+  const items = useSelector(selectAulas);
+  const loading = useSelector(selectAulasLoading);
+  const error = useSelector(selectAulasError);
+  const meta = useSelector(selectAulasMeta);
+  const saving = useSelector(selectAulasSaving);
+  const saveError = useSelector(selectAulasSaveError);
+  const deleteError = useSelector(selectAulasDeleteError);
 
-    useEffect(() => { if (saveError?.message) toast.push(saveError.message, 'error'); }, [saveError, toast]);
-    useEffect(() => {
-        if (deleteError?.message) { toast.push(deleteError.message, 'error'); dispatch(clearAulasDeleteError()); }
-    }, [deleteError, dispatch, toast]);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(15);
+  const [q, setQ] = useState('');
+  const [openForm, setOpenForm] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [confirm, setConfirm] = useState({ open: false, row: null });
+  const [form, setForm] = useState(emptyForm);
 
-    const filtered = useMemo(() => {
-        const s = q.trim().toLowerCase();
-        if (!s) return items;
-        return items.filter((it) => JSON.stringify(it).toLowerCase().includes(s));
-    }, [q, items]);
+  useEffect(() => {
+    dispatch(fetchAulas({ page, per_page: perPage }));
+  }, [dispatch, page, perPage]);
 
-    const openCreate = () => {
-        setEditing(null);
-        setForm({ nombre: '', capacidad: 1, ubicacion: '', piso: 1 });
-        dispatch(clearAulasSaveError());
-        setOpen(true);
-    };
+  useEffect(() => {
+    if (saveError?.message) {
+      toast.push(saveError.message, 'error');
+    }
+  }, [saveError, toast]);
 
-    const openEdit = (row) => {
-        setEditing(row);
-        setForm({
-            nombre: row?.codigo_aula ?? '',
-            capacidad: row?.capacidad ?? 1,
-            ubicacion: row?.ubicacion ?? '',
-            piso: row?.piso ?? 1,
-        });
-        dispatch(clearAulasSaveError());
-        setOpen(true);
-    };
+  useEffect(() => {
+    if (deleteError?.message) {
+      toast.push(deleteError.message, 'error');
+      dispatch(clearAulasDeleteError());
+    }
+  }, [deleteError, dispatch, toast]);
 
-    const onSubmit = async (e) => {
-        e?.preventDefault?.();
-        if (!form.nombre.trim()) { toast.push('El nombre/código es obligatorio', 'error'); return; }
-        try {
-            if (editing) {
-                await dispatch(updateAula({ id: editing.id, ...form })).unwrap();
-                toast.push('Aula actualizada', 'success');
-            } else {
-                await dispatch(createAula(form)).unwrap();
-                toast.push('Aula creada', 'success');
-            }
-            setOpen(false);
-            dispatch(fetchAulas({ page }));
-        } catch { }
-    };
-
-    const onDelete = async (row) => {
-        if (!confirm(`¿Eliminar el aula "${row?.codigo_aula ?? row.id}"?`)) return;
-        try {
-            await dispatch(deleteAula(row.id)).unwrap();
-            toast.push('Aula eliminada', 'success');
-            dispatch(fetchAulas({ page }));
-        } catch { }
-    };
-
-    const Paginador = () => (
-        <div className="flex items-center justify-between mt-4 text-sm">
-            <div>Mostrando {filtered.length} / {meta.total} (página {meta.current_page} de {meta.last_page})</div>
-            <div className="space-x-2">
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>« Primera</button>
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ Anterior</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}>Siguiente ›</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(meta.last_page)}>Última »</button>
-            </div>
-        </div>
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return items;
+    return items.filter((row) =>
+      [row.codigo_aula, row.ubicacion, row.piso?.toString()].some((field) =>
+        field?.toLowerCase().includes(needle)
+      )
     );
+  }, [q, items]);
 
-    const Errors422 = ({ errors }) => {
-        if (!errors) return null;
-        const entries = Object.entries(errors);
-        if (!entries.length) return null;
-        return (
-            <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded">
-                {entries.map(([field, msgs]) => (
-                    <div key={field}><strong>{field}:</strong> {Array.isArray(msgs) ? msgs.join(', ') : String(msgs)}</div>
-                ))}
-            </div>
-        );
-    };
+  const columns = [
+    { header: 'Código', accessor: 'codigo_aula', sortable: true },
+    { header: 'Capacidad', accessor: 'capacidad', align: 'center' },
+    { header: 'Ubicación', accessor: 'ubicacion' },
+    { header: 'Piso', accessor: 'piso', align: 'center' },
+  ];
 
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">🏫 Aulas</h1>
-                    <p className="mt-1 text-sm text-gray-500">Gestión de aulas y espacios físicos</p>
-                </div>
-                <button className="btn-primary" onClick={openCreate}>+ Nueva Aula</button>
-            </div>
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    dispatch(clearAulasSaveError());
+    setOpenForm(true);
+  };
 
-            <div className="card">
-                <div className="flex items-center justify-between">
-                    <input className="input max-w-sm" placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
-                    <span className="text-sm text-gray-500">Paginación del servidor</span>
-                </div>
+  const openEdit = (row) => {
+    setEditing(row);
+    setForm({
+      nombre: row?.codigo_aula ?? '',
+      capacidad: row?.capacidad ?? 1,
+      ubicacion: row?.ubicacion ?? '',
+      piso: row?.piso ?? 1,
+    });
+    dispatch(clearAulasSaveError());
+    setOpenForm(true);
+  };
 
-                {error && <div className="bg-red-50 text-red-700 text-sm p-2 rounded mt-4">{error}</div>}
+  const closeForm = () => setOpenForm(false);
 
-                {loading ? (
-                    <div className="py-10 text-center"><Loader /></div>
-                ) : filtered.length === 0 ? (
-                    <div className="py-10 text-center"><EmptyState title="Aún no hay aulas" message="Crea la primera aula para comenzar" /></div>
-                ) : (
-                    <div className="mt-4 divide-y rounded border bg-white">
-                        <div className="grid grid-cols-12 px-3 py-2 text-xs font-semibold text-gray-600">
-                            <div className="col-span-1">ID</div>
-                            <div className="col-span-3">Código</div>
-                            <div className="col-span-2">Capacidad</div>
-                            <div className="col-span-4">Ubicación</div>
-                            <div className="col-span-2 text-right">Acciones</div>
-                        </div>
-                        {filtered.map((it) => (
-                            <div key={it.id} className="grid grid-cols-12 items-center px-3 py-2 text-sm">
-                                <div className="col-span-1">#{it.id}</div>
-                                <div className="col-span-3">{it.codigo_aula ?? '—'}</div>
-                                <div className="col-span-2">{it.capacidad ?? '—'}</div>
-                                <div className="col-span-4 truncate">{it.ubicacion ?? '—'}</div>
-                                <div className="col-span-2 text-right space-x-2">
-                                    <button className="btn-secondary" onClick={() => openEdit(it)}>Editar</button>
-                                    <button className="btn-danger" onClick={() => onDelete(it)}>Eliminar</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+  const onSubmit = async (event) => {
+    event.preventDefault();
+    if (!form.nombre.trim()) {
+      toast.push('El código del aula es obligatorio', 'error');
+      return;
+    }
+    try {
+      if (editing) {
+        await dispatch(updateAula({ id: editing.id, ...form })).unwrap();
+        toast.push('Aula actualizada', 'success');
+      } else {
+        await dispatch(createAula(form)).unwrap();
+        toast.push('Aula creada', 'success');
+      }
+      setOpenForm(false);
+      dispatch(fetchAulas({ page, per_page: perPage }));
+    } catch {}
+  };
 
-                <Paginador />
-            </div>
+  const requestDelete = (row) => setConfirm({ open: true, row });
 
-            <Modal
-                open={open}
-                title={editing ? 'Editar Aula' : 'Nueva Aula'}
-                onClose={() => setOpen(false)}
-                footer={
-                    <>
-                        <button className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>Cancelar</button>
-                        <button className="btn-primary" onClick={onSubmit} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button>
-                    </>
-                }
+  const confirmDelete = async () => {
+    const row = confirm.row;
+    if (!row) return;
+    try {
+      await dispatch(deleteAula(row.id)).unwrap();
+      toast.push('Aula eliminada', 'success');
+      setConfirm({ open: false, row: null });
+      dispatch(fetchAulas({ page, per_page: perPage }));
+    } catch {}
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Aulas" subtitle="Controla la disponibilidad de espacios">
+        <button type="button" className="btn-primary" onClick={openCreate}>
+          + Nueva aula
+        </button>
+      </PageHeader>
+
+      {error && (
+        <Alert type="error" message={error} onClose={() => dispatch(clearAulasError())} />
+      )}
+
+      <DataTable
+        columns={columns}
+        data={filtered}
+        loading={loading}
+        currentPage={meta?.page || page}
+        totalPages={meta?.last_page || 1}
+        perPage={perPage}
+        total={meta?.total ?? filtered.length}
+        onPageChange={setPage}
+        onPerPageChange={(value) => {
+          setPerPage(value);
+          setPage(1);
+        }}
+        searchTerm={q}
+        onSearchChange={setQ}
+        emptyMessage="Aún no se registraron aulas"
+        actions={(row) => (
+          <>
+            <button type="button" className="table-action-button" onClick={() => openEdit(row)}>
+              Editar
+            </button>
+            <button
+              type="button"
+              className="table-action-button danger"
+              onClick={() => requestDelete(row)}
             >
-                <form onSubmit={onSubmit} className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
-                            <input className="input" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="p.ej. A-101" required />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad *</label>
-                            <input type="number" min={1} max={200} className="input" value={form.capacidad} onChange={(e) => setForm((f) => ({ ...f, capacidad: Number(e.target.value || 1) }))} required />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
-                            <input className="input" value={form.ubicacion} onChange={(e) => setForm((f) => ({ ...f, ubicacion: e.target.value }))} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Piso</label>
-                            <input type="number" min={0} className="input" value={form.piso} onChange={(e) => setForm((f) => ({ ...f, piso: Number(e.target.value || 1) }))} />
-                        </div>
-                    </div>
+              Eliminar
+            </button>
+          </>
+        )}
+      />
 
-                    {/* Mensajes de validación del backend (422) */}
-                    <Errors422 errors={saveError?.errors} />
-                </form>
-            </Modal>
-        </div>
-    );
+      <Modal
+        open={openForm}
+        title={editing ? 'Editar aula' : 'Nueva aula'}
+        onClose={closeForm}
+      >
+        <form onSubmit={onSubmit} className="form-layout">
+          <div className="form-section">
+            <p className="form-section-title">Detalles del aula</p>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>
+                  Código / Nombre <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className="input"
+                  placeholder="A-201"
+                  value={form.nombre}
+                  onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Capacidad</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="1"
+                  value={form.capacidad}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, capacidad: Number(e.target.value) }))
+                  }
+                />
+              </div>
+              <div className="form-field">
+                <label>Ubicación</label>
+                <input
+                  className="input"
+                  placeholder="Edificio central"
+                  value={form.ubicacion}
+                  onChange={(e) => setForm((prev) => ({ ...prev, ubicacion: e.target.value }))}
+                />
+              </div>
+              <div className="form-field">
+                <label>Piso</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={form.piso}
+                  onChange={(e) => setForm((prev) => ({ ...prev, piso: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          {saveError?.errors && (
+            <div className="bg-red-50 text-red-700 text-xs p-3 rounded">
+              {Object.entries(saveError.errors).map(([key, value]) => (
+                <div key={key}>
+                  <strong>{key}:</strong> {Array.isArray(value) ? value.join(', ') : String(value)}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="form-actions">
+            <button type="button" className="btn-secondary" onClick={closeForm} disabled={saving}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={confirm.open}
+        title="Eliminar aula"
+        message={`¿Deseas eliminar el aula "${confirm.row?.codigo_aula ?? ''}"? Esta acción no se puede deshacer.`}
+        onCancel={() => setConfirm({ open: false, row: null })}
+        onConfirm={confirmDelete}
+      />
+    </div>
+  );
 }
-
-export default AulasPage;

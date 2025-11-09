@@ -40,15 +40,16 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Correo</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Correo Institucional</label>
             <input
               type="email"
               className="input w-full"
-              placeholder="admin.qa@test.com"
+              placeholder="admin@gestion-academica.edu"
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
+            <p className="text-xs text-gray-500 mt-1">Usa tu cuenta institucional asignada por la coordinación.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
@@ -72,23 +73,9 @@ export default function LoginPage() {
           </button>
         </form>
         <div className="mt-3 text-center text-sm text-gray-600">
-          ¿No tienes cuenta? <a className="link" href="/registro">Crear cuenta</a>
-          {' · '}
-          <a
-            className="link"
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              alert(
-                'Si olvidaste tu contraseña, contacta al administrador para reiniciarla o utiliza el flujo de restablecimiento cuando esté habilitado.'
-              );
-            }}
-          >
-            Olvidé mi contraseña
-          </a>
+          ¿No tienes cuenta? <a className="link" href="/registro">Crear Cuenta</a>
         </div>
       </div>
     </div>
   );
 }
-

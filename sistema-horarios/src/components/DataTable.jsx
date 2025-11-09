@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+﻿import React, { useMemo } from 'react';
 
 function DataTable({
   columns = [],
@@ -9,14 +9,15 @@ function DataTable({
   perPage = 10,
   total = 0,
   onPageChange = () => {},
-  onPerPageChange = () => {},
+  onPerPageChange,
   searchTerm = '',
-  onSearchChange = () => {},
+  onSearchChange,
   sortColumn = '',
   sortDirection = 'asc',
   onSort = () => {},
   emptyMessage = 'No hay datos disponibles',
   actions = null,
+  toolbar = null,
 }) {
   const renderCellContent = (row, column) => {
     if (!row || typeof row !== 'object') return '-';
@@ -29,8 +30,9 @@ function DataTable({
   };
 
   const handleSort = (column) => {
-    if (!column.sortable) return;
-    const newDirection = sortColumn === column.accessor && sortDirection === 'asc' ? 'desc' : 'asc';
+    if (!column.sortable || !column.accessor) return;
+    const newDirection =
+      sortColumn === column.accessor && sortDirection === 'asc' ? 'desc' : 'asc';
     onSort(column.accessor, newDirection);
   };
 
@@ -39,147 +41,148 @@ function DataTable({
     [data]
   );
 
-  if (loading) {
-    return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="animate-pulse p-6">
-          <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-4 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const hasSearch = typeof onSearchChange === 'function';
+  const hasToolbar = hasSearch || Boolean(toolbar);
+  const start = total === 0 ? 0 : Math.min((currentPage - 1) * perPage + 1, total);
+  const end = Math.min(currentPage * perPage, total);
+
+  const goToPage = (page) => {
+    const safeTotalPages = totalPages || 1;
+    const safePage = Math.min(Math.max(page, 1), safeTotalPages);
+    onPageChange(safePage);
+  };
+
+  const canChangePageSize = typeof onPerPageChange === 'function';
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      {onSearchChange && (
-        <div className="p-4 border-b border-gray-200">
-          <input
-            type="text"
-            placeholder="Buscar..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+    <div className="table-card">
+      {hasToolbar && (
+        <div className="table-card-toolbar">
+          {hasSearch && (
+            <label className="table-search">
+              <span className="sr-only">Buscar</span>
+              <input
+                type="search"
+                placeholder="Buscar..."
+                value={searchTerm}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="table-search-input"
+              />
+            </label>
+          )}
+          {toolbar && <div className="table-toolbar-slot">{toolbar}</div>}
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {columns.map((column, index) => (
-                <th
-                  key={index}
-                  className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                    column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''
-                  }`}
-                  onClick={() => handleSort(column)}
-                >
-                  <div className="flex items-center space-x-1">
+      <div className="table-scroll">
+        {loading ? (
+          <div className="table-loading">
+            {[...Array(5)].map((_, index) => (
+              <div key={index} className="table-loading-row" />
+            ))}
+          </div>
+        ) : (
+          <table className="ga-table">
+            <thead>
+              <tr>
+                {columns.map((column, index) => (
+                  <th
+                    key={index}
+                    scope="col"
+                    className={column.sortable ? 'sortable' : undefined}
+                    onClick={() => handleSort(column)}
+                    style={{ width: column.width }}
+                  >
                     <span>{column.header}</span>
                     {column.sortable && sortColumn === column.accessor && (
-                      <span className="text-blue-600" aria-hidden>
-                        {sortDirection === 'asc' ? '\u2191' : '\u2193'}
+                      <span className="ga-table-sort" aria-hidden>
+                        {sortDirection === 'asc' ? '?' : '?'}
                       </span>
                     )}
-                  </div>
-                </th>
-              ))}
-              {actions && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {safeData.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length + (actions ? 1 : 0)}
-                  className="px-6 py-12 text-center text-gray-500"
-                >
-                  {emptyMessage}
-                </td>
+                  </th>
+                ))}
+                {actions && (
+                  <th scope="col" className="text-right" aria-label="Acciones">
+                    Acciones
+                  </th>
+                )}
               </tr>
-            ) : (
-              safeData.map((row, rowIndex) => (
-                <tr key={row?.id || rowIndex} className="hover:bg-gray-50">
-                  {columns.map((column, colIndex) => (
-                    <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {renderCellContent(row, column)}
-                    </td>
-                  ))}
-                  {actions && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{actions(row)}</td>
-                  )}
+            </thead>
+            <tbody>
+              {safeData.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns.length + (actions ? 1 : 0)}
+                    className="table-empty"
+                  >
+                    {emptyMessage}
+                  </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                safeData.map((row, rowIndex) => (
+                  <tr key={row?.id || rowIndex}>
+                    {columns.map((column, colIndex) => (
+                      <td
+                        key={colIndex}
+                        style={{ textAlign: column.align || 'left' }}
+                      >
+                        {renderCellContent(row, column)}
+                      </td>
+                    ))}
+                    {actions && (
+                      <td className="table-actions-cell">{actions(row)}</td>
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {total > 0 && (
-        <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 sm:px-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-gray-700">
-              Mostrando {Math.min((currentPage - 1) * perPage + 1, total)} a{' '}
-              {Math.min(currentPage * perPage, total)} de {total} resultados
-            </div>
-
-            <div className="flex items-center gap-4">
-              <select
-                value={perPage}
-                onChange={(e) => onPerPageChange(Number(e.target.value))}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        <div className="table-pagination">
+          <div className="table-pagination-info">
+            Mostrando {start} a {end} de {total} resultados
+          </div>
+          <div className="table-pagination-controls">
+            {canChangePageSize && (
+              <label className="table-per-page">
+                <span>Filas</span>
+                <select
+                  value={perPage}
+                  onChange={(e) => onPerPageChange(Number(e.target.value))}
+                >
+                  {[10, 25, 50, 100].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <div className="table-pagination-buttons">
+              <button onClick={() => goToPage(1)} disabled={currentPage <= 1}>
+                {'«'}
+              </button>
+              <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage <= 1}>
+                {'‹'}
+              </button>
+              <span>
+                {'Página'} {currentPage} de {totalPages || 1}
+              </span>
+              <button
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={currentPage >= (totalPages || 1)}
               >
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-
-              <div className="flex gap-1">
-                <button
-                  onClick={() => onPageChange(1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                >
-                  {'\u00AB'}
-                </button>
-                <button
-                  onClick={() => onPageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                >
-                  {'\u2039'}
-                </button>
-
-                <span className="px-3 py-1 text-sm text-gray-700">
-                  {'P\u00E1gina'} {currentPage} de {totalPages}
-                </span>
-
-                <button
-                  onClick={() => onPageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                >
-                  {'\u203A'}
-                </button>
-                <button
-                  onClick={() => onPageChange(totalPages)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                >
-                  {'\u00BB'}
-                </button>
-              </div>
+                {'›'}
+              </button>
+              <button
+                onClick={() => goToPage(totalPages || 1)}
+                disabled={currentPage >= (totalPages || 1)}
+              >
+                {'»'}
+              </button>
             </div>
           </div>
         </div>

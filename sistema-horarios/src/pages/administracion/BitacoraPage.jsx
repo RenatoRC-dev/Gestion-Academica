@@ -1,77 +1,86 @@
-// src/pages/BitacoraPage.jsx
+// src/pages/administracion/BitacoraPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchBitacora, selectBitacora, selectBitacoraLoading, selectBitacoraError, selectBitacoraMeta } from '../../store/slices/bitacoraSlice.js';
+import DataTable from '../../components/DataTable.jsx';
+import PageHeader from '../../components/PageHeader.jsx';
+import Alert from '../../components/Alert.jsx';
+import {
+  fetchBitacora,
+  selectBitacora,
+  selectBitacoraLoading,
+  selectBitacoraError,
+  selectBitacoraMeta,
+} from '../../store/slices/bitacoraSlice.js';
+
+const formatDateTime = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return value.toString().replace('T', ' ').slice(0, 19);
+  return date.toLocaleString('es-BO', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export default function BitacoraPage() {
-    const dispatch = useDispatch();
-    const rows = useSelector(selectBitacora);
-    const loading = useSelector(selectBitacoraLoading);
-    const error = useSelector(selectBitacoraError);
-    const meta = useSelector(selectBitacoraMeta);
+  const dispatch = useDispatch();
+  const rows = useSelector(selectBitacora);
+  const loading = useSelector(selectBitacoraLoading);
+  const error = useSelector(selectBitacoraError);
+  const meta = useSelector(selectBitacoraMeta);
 
-    const [page, setPage] = useState(1);
-    const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
 
-    useEffect(() => { dispatch(fetchBitacora({ page })); }, [dispatch, page]);
+  useEffect(() => {
+    dispatch(fetchBitacora({ page }));
+  }, [dispatch, page]);
 
-    const filtered = useMemo(() => {
-        const s = q.trim().toLowerCase();
-        if (!s) return rows;
-        return rows.filter((it) => JSON.stringify(it).toLowerCase().includes(s));
-    }, [q, rows]);
-
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">📝 Bitácora</h1>
-                <input className="input max-w-sm" placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
-            </div>
-
-            <div className="card">
-                {error && <div className="bg-red-50 text-red-700 text-sm p-2 rounded mt-2">{error}</div>}
-
-                {loading ? (
-                    <div className="py-10 text-center">Cargando…</div>
-                ) : filtered.length === 0 ? (
-                    <div className="py-10 text-center text-gray-600">Sin registros</div>
-                ) : (
-                    <div className="mt-4 overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="bg-gray-50 text-gray-600">
-                                    <th className="text-left p-2">#</th>
-                                    <th className="text-left p-2">Acción</th>
-                                    <th className="text-left p-2">Modelo</th>
-                                    <th className="text-left p-2">Usuario</th>
-                                    <th className="text-left p-2">Fecha</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filtered.map((b, idx) => (
-                                    <tr key={b.id} className="border-t">
-                                        <td className="p-2">{idx + 1}</td>
-                                        <td className="p-2">{b.accion ?? b.action ?? '-'}</td>
-                                        <td className="p-2">{b.tabla_afectada ?? b.modelo ?? b.model ?? '-'}</td>
-                                        <td className="p-2">{b.usuario?.nombre_completo ?? b.usuario_nombre ?? '-'}</td>
-                                        <td className="p-2">{(b.fecha_hora || b.created_at || '').toString().replace('T',' ').slice(0,19)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
-                        <div className="flex items-center justify-between mt-4 text-sm">
-                            <div>Mostrando {filtered.length} / {meta?.total || 0} (página {meta?.current_page || 1} de {meta?.last_page || 1})</div>
-                            <div className="space-x-2">
-                                <button className="btn-secondary" disabled={(meta?.current_page || 1) <= 1} onClick={() => setPage(1)}>« Primera</button>
-                                <button className="btn-secondary" disabled={(meta?.current_page || 1) <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ Anterior</button>
-                                <button className="btn-secondary" disabled={(meta?.current_page || 1) >= (meta?.last_page || 1)} onClick={() => setPage(p => Math.min(meta?.last_page || 1, p + 1))}>Siguiente ›</button>
-                                <button className="btn-secondary" disabled={(meta?.current_page || 1) >= (meta?.last_page || 1)} onClick={() => setPage(meta?.last_page || 1)}>Última »</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((entry) =>
+      [entry.accion, entry.modelo, entry.usuario?.nombre_completo]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(needle))
     );
+  }, [search, rows]);
+
+  const columns = [
+    { header: 'Fecha / hora', render: (row) => formatDateTime(row.fecha_hora || row.created_at) },
+    {
+      header: 'Usuario',
+      render: (row) => row.usuario?.nombre_completo || row.usuario_nombre || 'Sistema',
+    },
+    { header: 'Acción', accessor: 'accion' },
+    { header: 'Detalle', render: (row) => row.modelo ?? row.detalle ?? '-' },
+  ];
+
+  const perPage = meta?.per_page || 15;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Bitácora" subtitle="Registro de acciones recientes" />
+
+      {error && <Alert type="error" message={error} />}
+
+      <DataTable
+        columns={columns}
+        data={filtered}
+        loading={loading}
+        currentPage={meta?.page || page}
+        totalPages={meta?.last_page || 1}
+        perPage={perPage}
+        total={meta?.total ?? filtered.length}
+        onPageChange={setPage}
+        onPerPageChange={null}
+        searchTerm={search}
+        onSearchChange={setSearch}
+        emptyMessage="Todavía no hay registros en la bitácora"
+      />
+    </div>
+  );
 }

@@ -1,243 +1,313 @@
-﻿// src/pages/GruposPage.jsx
-import { useEffect, useMemo, useState } from 'react';
+// src/pages/academica/GruposPage.jsx
+import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import DataTable from '../../components/DataTable.jsx';
 import Modal from '../../components/Modal.jsx';
-import { useToast } from '../../components/ToastProvider.jsx';
-import EmptyState from '../../components/EmptyState.jsx';
-import Loader from '../../components/Loader.jsx';
+import PageHeader from '../../components/PageHeader.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import Alert from '../../components/Alert.jsx';
+import { useToast } from '../../components/ToastProvider.jsx';
 import {
-    fetchGrupos, createGrupo, updateGrupo, deleteGrupo,
-    selectGrupos, selectGruposLoading, selectGruposError, selectGruposMeta,
-    selectGruposSaving, selectGruposSaveError, selectGruposDeleteError,
-    clearGruposSaveError, clearGruposDeleteError
+  fetchGrupos,
+  createGrupo,
+  updateGrupo,
+  deleteGrupo,
+  selectGrupos,
+  selectGruposLoading,
+  selectGruposError,
+  selectGruposMeta,
+  selectGruposSaving,
+  selectGruposSaveError,
+  selectGruposDeleteError,
+  clearGruposError,
+  clearGruposSaveError,
+  clearGruposDeleteError,
 } from '../../store/slices/gruposSlice.js';
-
-// Para selects: puedes reemplazar por llamadas reales a /materias y /periodos si quieres
 import { fetchMaterias, selectMaterias } from '../../store/slices/materiasSlice.js';
 import { fetchPeriodos, selectPeriodos } from '../../store/slices/periodosSlice.js';
 
-function GruposPage() {
-    const dispatch = useDispatch();
-    const toast = useToast();
+const emptyForm = { materia_id: '', periodo_id: '', codigo: '', cantidad_maxima: 1 };
 
-    const items = useSelector(selectGrupos);
-    const loading = useSelector(selectGruposLoading);
-    const error = useSelector(selectGruposError);
-    const meta = useSelector(selectGruposMeta);
-    const saving = useSelector(selectGruposSaving);
-    const saveError = useSelector(selectGruposSaveError);
-    const deleteError = useSelector(selectGruposDeleteError);
+export default function GruposPage() {
+  const dispatch = useDispatch();
+  const toast = useToast();
 
-    const materias = useSelector(selectMaterias);
-    const periodos = useSelector(selectPeriodos);
+  const grupos = useSelector(selectGrupos);
+  const loading = useSelector(selectGruposLoading);
+  const error = useSelector(selectGruposError);
+  const meta = useSelector(selectGruposMeta);
+  const saving = useSelector(selectGruposSaving);
+  const saveError = useSelector(selectGruposSaveError);
+  const deleteError = useSelector(selectGruposDeleteError);
 
-    const [page, setPage] = useState(1);
-    const [q, setQ] = useState('');
-    const [open, setOpen] = useState(false);
-    const [confirm, setConfirm] = useState({ open: false, row: null });
-    const [editing, setEditing] = useState(null);
+  const materias = useSelector(selectMaterias);
+  const periodos = useSelector(selectPeriodos);
 
-    // Backend: create => { materia_id, periodo_id, codigo, cantidad_maxima }
-    const [form, setForm] = useState({ materia_id: '', periodo_id: '', codigo: '', cantidad_maxima: 1 });
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(15);
+  const [q, setQ] = useState('');
+  const [openForm, setOpenForm] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [confirm, setConfirm] = useState({ open: false, row: null });
+  const [form, setForm] = useState(emptyForm);
 
-    useEffect(() => { dispatch(fetchGrupos({ page })); }, [dispatch, page]);
-    // Asegurar catálogos para selects
-    useEffect(() => {
-        if (!materias?.length) dispatch(fetchMaterias({ page: 1 }));
-        if (!periodos?.length) dispatch(fetchPeriodos({ page: 1 }));
-    }, [dispatch]);
+  useEffect(() => {
+    dispatch(fetchGrupos({ page, per_page: perPage }));
+  }, [dispatch, page, perPage]);
 
-    useEffect(() => { if (saveError?.message) toast.push(saveError.message, saveError?.status === 409 ? 'error' : 'error'); }, [saveError, toast]);
-    useEffect(() => {
-        if (deleteError?.message) { toast.push(deleteError.message, 'error'); dispatch(clearGruposDeleteError()); }
-    }, [deleteError, dispatch, toast]);
+  useEffect(() => {
+    if (!materias?.length) {
+      dispatch(fetchMaterias({ page: 1 }));
+    }
+    if (!periodos?.length) {
+      dispatch(fetchPeriodos({ page: 1 }));
+    }
+  }, [dispatch, materias?.length, periodos?.length]);
 
-    const filtered = useMemo(() => {
-        const s = q.trim().toLowerCase();
-        if (!s) return items;
-        return items.filter((it) => JSON.stringify(it).toLowerCase().includes(s));
-    }, [q, items]);
+  useEffect(() => {
+    if (saveError?.message) {
+      toast.push(saveError.message, 'error');
+    }
+  }, [saveError, toast]);
 
-    const openCreate = () => {
-        setEditing(null);
-        setForm({ materia_id: '', periodo_id: '', codigo: '', cantidad_maxima: 1 });
-        dispatch(clearGruposSaveError());
-        setOpen(true);
-    };
+  useEffect(() => {
+    if (deleteError?.message) {
+      toast.push(deleteError.message, 'error');
+      dispatch(clearGruposDeleteError());
+    }
+  }, [deleteError, dispatch, toast]);
 
-    const openEdit = (row) => {
-        setEditing(row);
-        setForm({
-            materia_id: row?.materia_id ?? row?.materia?.id ?? '',
-            periodo_id: row?.periodo_academico_id ?? row?.periodo?.id ?? '',
-            codigo: row?.codigo_grupo ?? '',
-            cantidad_maxima: row?.cupo_maximo ?? 1,
-        });
-        dispatch(clearGruposSaveError());
-        setOpen(true);
-    };
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return grupos;
+    return grupos.filter((grupo) => {
+      const materiaNombre = grupo.materia?.nombre || '';
+      const periodoNombre = grupo.periodo?.nombre || grupo.periodo?.codigo || '';
+      return (
+        grupo.codigo_grupo?.toLowerCase().includes(needle) ||
+        materiaNombre.toLowerCase().includes(needle) ||
+        periodoNombre.toLowerCase().includes(needle)
+      );
+    });
+  }, [q, grupos]);
 
-    const onSubmit = async (e) => {
-        e?.preventDefault?.();
-        if (!form.materia_id || !form.periodo_id || !form.codigo.trim()) {
-            toast.push('Materia, período y código son obligatorios', 'error');
-            return;
-        }
-        try {
-            if (editing) {
-                await dispatch(updateGrupo({ id: editing.id, codigo: form.codigo, cantidad_maxima: form.cantidad_maxima })).unwrap();
-                toast.push('Grupo actualizado', 'success');
-            } else {
-                await dispatch(createGrupo(form)).unwrap();
-                toast.push('Grupo creado', 'success');
-            }
-            setOpen(false);
-            dispatch(fetchGrupos({ page }));
-        } catch { }
-    };
+  const columns = [
+    { header: 'Código', accessor: 'codigo_grupo', sortable: true },
+    {
+      header: 'Materia',
+      render: (row) => row.materia?.nombre ?? row.materia?.codigo_materia ?? '-',
+    },
+    {
+      header: 'Periodo',
+      render: (row) => row.periodo?.nombre ?? row.periodo?.codigo ?? '-',
+    },
+    { header: 'Cupo', accessor: 'cupo_maximo', align: 'center' },
+  ];
 
-    const onDelete = async (row) => {
-        if (!confirm(`¿Eliminar el grupo "${row?.codigo_grupo ?? row.id}"?`)) return;
-        try {
-            await dispatch(deleteGrupo(row.id)).unwrap();
-            toast.push('Grupo eliminado', 'success');
-            dispatch(fetchGrupos({ page }));
-        } catch { }
-    };
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    dispatch(clearGruposSaveError());
+    setOpenForm(true);
+  };
 
-    const Paginador = () => (
-        <div className="flex items-center justify-between mt-4 text-sm">
-            <div>Mostrando {filtered.length} / {meta.total} (página {meta.current_page} de {meta.last_page})</div>
-            <div className="space-x-2">
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(1)}>« Primera</button>
-                <button className="btn-secondary" disabled={meta.current_page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ Anterior</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}>Siguiente ›</button>
-                <button className="btn-secondary" disabled={meta.current_page >= meta.last_page} onClick={() => setPage(meta.last_page)}>Última »</button>
-            </div>
-        </div>
-    );
+  const openEdit = (row) => {
+    setEditing(row);
+    setForm({
+      materia_id: row?.materia_id ?? row?.materia?.id ?? '',
+      periodo_id: row?.periodo_academico_id ?? row?.periodo?.id ?? '',
+      codigo: row?.codigo_grupo ?? '',
+      cantidad_maxima: row?.cupo_maximo ?? 1,
+    });
+    dispatch(clearGruposSaveError());
+    setOpenForm(true);
+  };
 
-    const Errors = ({ errors }) => {
-        if (!errors) return null;
-        const entries = Object.entries(errors);
-        if (!entries.length) return null;
-        return (
-            <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded">
-                {entries.map(([field, msgs]) => (
-                    <div key={field}><strong>{field}:</strong> {Array.isArray(msgs) ? msgs.join(', ') : String(msgs)}</div>
-                ))}
-            </div>
-        );
-    };
+  const closeForm = () => setOpenForm(false);
 
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">👥 Grupos</h1>
-                    <p className="mt-1 text-sm text-gray-500">Gestión de grupos por materia y período</p>
-                </div>
-                <button className="btn-primary" onClick={openCreate}>+ Nuevo Grupo</button>
-            </div>
+  const onSubmit = async (event) => {
+    event.preventDefault();
+    if (!form.materia_id || !form.periodo_id || !form.codigo.trim()) {
+      toast.push('Materia, periodo y código son obligatorios', 'error');
+      return;
+    }
+    try {
+      if (editing) {
+        await dispatch(updateGrupo({ id: editing.id, ...form })).unwrap();
+        toast.push('Grupo actualizado', 'success');
+      } else {
+        await dispatch(createGrupo(form)).unwrap();
+        toast.push('Grupo creado', 'success');
+      }
+      setOpenForm(false);
+      dispatch(fetchGrupos({ page, per_page: perPage }));
+    } catch {}
+  };
 
-            <div className="card">
-                <div className="flex items-center justify-between">
-                    <input className="input max-w-sm" placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
-                    <span className="text-sm text-gray-500">Paginación del servidor</span>
-                </div>
+  const requestDelete = (row) => setConfirm({ open: true, row });
 
-                {error && <div className="bg-red-50 text-red-700 text-sm p-2 rounded mt-4">{error}</div>}
+  const confirmDelete = async () => {
+    const row = confirm.row;
+    if (!row) return;
+    try {
+      await dispatch(deleteGrupo(row.id)).unwrap();
+      toast.push('Grupo eliminado', 'success');
+      setConfirm({ open: false, row: null });
+      dispatch(fetchGrupos({ page, per_page: perPage }));
+    } catch {}
+  };
 
-                {loading ? (
-                    <div className="py-10 text-center"><Loader /></div>
-                ) : filtered.length === 0 ? (
-                    <div className="py-10 text-center"><EmptyState title="Aún no hay grupos" message="Crea un grupo para comenzar" /></div>
-                ) : (
-                    <div className="mt-4 divide-y rounded border bg-white">
-                        <div className="grid grid-cols-12 px-3 py-2 text-xs font-semibold text-gray-600">
-                            <div className="col-span-1">ID</div>
-                            <div className="col-span-3">Código</div>
-                            <div className="col-span-4">Materia</div>
-                            <div className="col-span-2">Período</div>
-                            <div className="col-span-2 text-right">Acciones</div>
-                        </div>
-                        {filtered.map((it) => (
-                            <div key={it.id} className="grid grid-cols-12 items-center px-3 py-2 text-sm">
-                                <div className="col-span-1">#{it.id}</div>
-                                <div className="col-span-3">{it.codigo_grupo ?? '—'}</div>
-                                <div className="col-span-4 truncate">{it?.materia?.nombre ?? '—'}</div>
-                                <div className="col-span-2">{it?.periodo?.nombre ?? '—'}</div>
-                                <div className="col-span-2 text-right space-x-2">
-                                    <button className="btn-secondary" onClick={() => openEdit(it)}>Editar</button>
-                                    <button className="btn-danger" onClick={() => onDelete(it)}>Eliminar</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Grupos" subtitle="Administra los grupos académicos">
+        <button type="button" className="btn-primary" onClick={openCreate}>
+          + Nuevo grupo
+        </button>
+      </PageHeader>
 
-                <Paginador />
-            </div>
+      {error && (
+        <Alert type="error" message={error} onClose={() => dispatch(clearGruposError())} />
+      )}
 
-            <Modal
-                open={open}
-                title={editing ? 'Editar Grupo' : 'Nuevo Grupo'}
-                onClose={() => setOpen(false)}
-                footer={
-                    <>
-                        <button className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>Cancelar</button>
-                        <button className="btn-primary" onClick={onSubmit} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button>
-                    </>
-                }
+      <DataTable
+        columns={columns}
+        data={filtered}
+        loading={loading}
+        currentPage={meta?.page || page}
+        totalPages={meta?.last_page || 1}
+        perPage={perPage}
+        total={meta?.total ?? filtered.length}
+        onPageChange={setPage}
+        onPerPageChange={(value) => {
+          setPerPage(value);
+          setPage(1);
+        }}
+        searchTerm={q}
+        onSearchChange={setQ}
+        emptyMessage="No hay grupos registrados"
+        actions={(row) => (
+          <>
+            <button type="button" className="table-action-button" onClick={() => openEdit(row)}>
+              Editar
+            </button>
+            <button
+              type="button"
+              className="table-action-button danger"
+              onClick={() => requestDelete(row)}
             >
-                <form onSubmit={onSubmit} className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Materia *</label>
-                            <select className="input" value={form.materia_id} onChange={(e) => setForm((f) => ({ ...f, materia_id: Number(e.target.value || 0) }))} required>
-                                <option value="">— Seleccione —</option>
-                                {materias.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Período *</label>
-                            <select className="input" value={form.periodo_id} onChange={(e) => setForm((f) => ({ ...f, periodo_id: Number(e.target.value || 0) }))} required>
-                                <option value="">— Seleccione —</option>
-                                {periodos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                            </select>
-                        </div>
-                    </div>
+              Eliminar
+            </button>
+          </>
+        )}
+      />
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
-                            <input className="input" value={form.codigo} onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))} required />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Cupo máximo *</label>
-                            <input type="number" min={1} max={100} className="input" value={form.cantidad_maxima} onChange={(e) => setForm((f) => ({ ...f, cantidad_maxima: Number(e.target.value || 1) }))} required />
-                        </div>
-                    </div>
+      <Modal
+        open={openForm}
+        title={editing ? 'Editar grupo' : 'Nuevo grupo'}
+        onClose={closeForm}
+      >
+        <form onSubmit={onSubmit} className="form-layout">
+          <div className="form-section">
+            <p className="form-section-title">Asignación</p>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>
+                  Materia <span className="text-red-500">*</span>
+                </label>
+                <select
+                  className="input"
+                  value={form.materia_id}
+                  onChange={(e) => setForm((prev) => ({ ...prev, materia_id: e.target.value }))}
+                  required
+                >
+                  <option value="">Selecciona una materia</option>
+                  {materias.map((materia) => (
+                    <option key={materia.id} value={materia.id}>
+                      {materia.codigo_materia} - {materia.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                    {/* Mensajes de validación del backend (422) */}
-                    {saveError?.errors && <Errors errors={saveError.errors} />}
-                </form>
-            </Modal>
+              <div className="form-field">
+                <label>
+                  Periodo <span className="text-red-500">*</span>
+                </label>
+                <select
+                  className="input"
+                  value={form.periodo_id}
+                  onChange={(e) => setForm((prev) => ({ ...prev, periodo_id: e.target.value }))}
+                  required
+                >
+                  <option value="">Selecciona un periodo</option>
+                  {periodos.map((periodo) => (
+                    <option key={periodo.id} value={periodo.id}>
+                      {periodo.nombre ?? periodo.codigo ?? `Periodo ${periodo.id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
 
-            <ConfirmDialog
-                open={confirm.open}
-                title="Eliminar grupo"
-                message={`¿Seguro que deseas eliminar "${confirm.row?.codigo_grupo ?? confirm.row?.id}"?`}
-                onCancel={() => setConfirm({ open: false, row: null })}
-                onConfirm={onDelete}
-                loading={saving}
-            />
-        </div>
-    );
+          <div className="form-section">
+            <p className="form-section-title">Datos del grupo</p>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>
+                  Código de grupo <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className="input"
+                  placeholder="GRP-01"
+                  value={form.codigo}
+                  onChange={(e) => setForm((prev) => ({ ...prev, codigo: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Cupo máximo</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="1"
+                  value={form.cantidad_maxima}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, cantidad_maxima: Number(e.target.value) }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          {saveError?.errors && (
+            <div className="bg-yellow-50 text-yellow-800 text-xs p-3 rounded">
+              {Object.entries(saveError.errors).map(([key, value]) => (
+                <div key={key}>
+                  <strong>{key}:</strong> {Array.isArray(value) ? value.join(', ') : String(value)}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="form-actions">
+            <button type="button" className="btn-secondary" onClick={closeForm} disabled={saving}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={confirm.open}
+        title="Eliminar grupo"
+        message={`¿Deseas eliminar el grupo "${confirm.row?.codigo_grupo ?? ''}"? Esta acción no se puede deshacer.`}
+        onCancel={() => setConfirm({ open: false, row: null })}
+        onConfirm={confirmDelete}
+      />
+    </div>
+  );
 }
-
-export default GruposPage;
-
-
-

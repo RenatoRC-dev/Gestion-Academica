@@ -1,338 +1,300 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import api from '../../services/api.js';
 import DataTable from '../../components/DataTable.jsx';
 import Alert from '../../components/Alert.jsx';
 import Modal from '../../components/Modal.jsx';
-import Can from '../../components/Can.jsx';
 import FieldErrorList from '../../components/FieldErrorList.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
 
+const emptyForm = {
+  nombre_completo: '',
+  email: '',
+  ci: '',
+  telefono_contacto: '',
+  direccion: '',
+  codigo_docente: '',
+};
+
 function DocentesPage() {
-    const navigate = useNavigate();
-    const [docentes, setDocentes] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [perPage, setPerPage] = useState(10);
-    const [totalPages, setTotalPages] = useState(1);
-    const [total, setTotal] = useState(0);
-    const [modalOpen, setModalOpen] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [currentDocente, setCurrentDocente] = useState(null);
-    const [validationErrors, setValidationErrors] = useState({});
-    const [formData, setFormData] = useState({
-        nombre_completo: '',
-        email: '',
-        ci: '',
-        telefono_contacto: '',
-        direccion: '',
-        codigo_docente: '',
-        password: '',
+  const [docentes, setDocentes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentDocente, setCurrentDocente] = useState(null);
+  const [validationErrors, setValidationErrors] = useState({});
+  const [formData, setFormData] = useState(emptyForm);
+
+  useEffect(() => {
+    fetchDocentes();
+  }, [currentPage, perPage]);
+
+  const fetchDocentes = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.get('/docentes', {
+        params: { page: currentPage, per_page: perPage },
+      });
+
+      const payload = response.data?.data || {};
+      setDocentes(Array.isArray(payload.data) ? payload.data : []);
+      setTotal(payload.total ?? 0);
+      setTotalPages(payload.last_page ?? 1);
+    } catch (err) {
+      setError(parseApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = () => {
+    setIsEditing(false);
+    setCurrentDocente(null);
+    setFormData(emptyForm);
+    setValidationErrors({});
+    setModalOpen(true);
+  };
+
+  const handleEdit = (docente) => {
+    setIsEditing(true);
+    setCurrentDocente(docente);
+    setFormData({
+      nombre_completo: docente.persona?.nombre_completo || '',
+      email: docente.persona?.usuario?.email || '',
+      ci: docente.persona?.ci || '',
+      telefono_contacto: docente.persona?.telefono_contacto || '',
+      direccion: docente.persona?.direccion || '',
+      codigo_docente: docente.codigo_docente || '',
     });
+    setValidationErrors({});
+    setModalOpen(true);
+  };
 
-    useEffect(() => {
-        fetchDocentes();
-    }, [currentPage, perPage]);
+  const handleDelete = async (personaId) => {
+    const confirmed = window.confirm('¿Deseas eliminar al docente seleccionado?');
+    if (!confirmed) return;
 
-    const fetchDocentes = async () => {
-        setLoading(true);
-        setError(null);
+    try {
+      await api.delete(`/docentes/${personaId}`);
+      fetchDocentes();
+    } catch (err) {
+      setError(parseApiError(err));
+    }
+  };
 
-        try {
-            const response = await api.get('/docentes', {
-                params: { page: currentPage, per_page: perPage }
-            });
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setValidationErrors({});
+    setError(null);
 
-            // Backend devuelve { success, data: { data:[], total, last_page, current_page, per_page } }
-            const payload = response.data?.data || {};
-            setDocentes(Array.isArray(payload.data) ? payload.data : []);
-            setTotal(payload.total ?? 0);
-            setTotalPages(payload.last_page ?? 1);
-        } catch (err) {
-            console.error('Error cargando docentes:', err);
-            setError(parseApiError(err));
-        } finally {
-            setLoading(false);
-        }
-    };
+    try {
+      if (isEditing && currentDocente) {
+        await api.put(`/docentes/${currentDocente.persona_id}`, formData);
+      } else {
+        await api.post('/docentes', formData);
+      }
 
-    const handleCreate = () => {
-        setIsEditing(false);
-        setCurrentDocente(null);
-        setFormData({
-            nombre_completo: '',
-            email: '',
-            ci: '',
-            telefono_contacto: '',
-            direccion: '',
-            codigo_docente: '',
-            password: '',
-        });
-        setValidationErrors({});
-        setModalOpen(true);
-    };
+      setModalOpen(false);
+      fetchDocentes();
+    } catch (err) {
+      if (err.response?.status === 422) {
+        setValidationErrors(err.response?.data?.errors || {});
+      } else {
+        setError(parseApiError(err));
+      }
+    }
+  };
 
-    const handleEdit = (docente) => {
-        setIsEditing(true);
-        setCurrentDocente(docente);
-        setFormData({
-            nombre_completo: docente.persona?.nombre_completo || '',
-            email: docente.persona?.usuario?.email || '',
-            ci: docente.persona?.ci || '',
-            telefono_contacto: docente.persona?.telefono_contacto || '',
-            direccion: docente.persona?.direccion || '',
-            codigo_docente: docente.codigo_docente || '',
-            password: '',
-        });
-        setValidationErrors({});
-        setModalOpen(true);
-    };
+  const columns = [
+    { header: 'Código', accessor: 'codigo_docente', sortable: true },
+    { header: 'Nombre completo', accessor: 'persona.nombre_completo', sortable: true },
+    { header: 'Correo institucional', accessor: 'persona.usuario.email' },
+    { header: 'CI', accessor: 'persona.ci' },
+    { header: 'Teléfono', accessor: 'persona.telefono_contacto' },
+  ];
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('¿Estás seguro de eliminar este docente?')) return;
+  const filteredDocentes = searchTerm
+    ? docentes.filter((docente) => {
+        const needle = searchTerm.trim().toLowerCase();
+        return (
+          docente.persona?.nombre_completo?.toLowerCase().includes(needle) ||
+          docente.codigo_docente?.toLowerCase().includes(needle) ||
+          docente.persona?.usuario?.email?.toLowerCase().includes(needle)
+        );
+      })
+    : docentes;
 
-        try {
-            await api.delete(`/docentes/${id}`);
-            fetchDocentes();
-        } catch (err) {
-            setError(parseApiError(err));
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setValidationErrors({});
-        setError(null);
-
-        try {
-            if (isEditing && currentDocente) {
-                const payload = { ...formData };
-                if (!payload.password) delete payload.password;
-                await api.put(`/docentes/${currentDocente.persona_id}`, payload);
-            } else {
-                await api.post('/docentes', formData);
-            }
-
-            setModalOpen(false);
-            fetchDocentes();
-        } catch (err) {
-            console.error('Error guardando docente:', err);
-
-            if (err.response?.status === 422) {
-                setValidationErrors(err.response?.data?.errors || {});
-            } else {
-                setError(parseApiError(err));
-            }
-        }
-    };
-
-    const columns = [
-        {
-            header: 'Código',
-            accessor: 'codigo_docente',
-            sortable: true,
-        },
-        {
-            header: 'Nombre Completo',
-            accessor: 'persona.nombre_completo',
-            sortable: true,
-        },
-        {
-            header: 'CI',
-            accessor: 'persona.ci',
-        },
-        {
-            header: 'Email',
-            accessor: 'persona.usuario.email',
-        },
-        {
-            header: 'Teléfono',
-            accessor: 'persona.telefono_contacto',
-        },
-    ];
-
-    const filteredDocentes = searchTerm
-        ? docentes.filter((d) =>
-            d.persona?.nombre_completo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            d.codigo_docente?.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        : docentes;
-
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">👨‍🏫 Docentes</h1>
-                    <p className="mt-1 text-sm text-gray-500">Gestión de docentes del sistema</p>
-                </div>
-                <button
-                    onClick={handleCreate}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium"
-                >
-                    + Nuevo Docente
-                </button>
-            </div>
-
-            {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
-
-            <DataTable
-                columns={columns}
-                data={filteredDocentes}
-                loading={loading}
-                currentPage={currentPage}
-                totalPages={totalPages}
-                perPage={perPage}
-                total={total}
-                onPageChange={setCurrentPage}
-                onPerPageChange={(val) => {
-                    setPerPage(val);
-                    setCurrentPage(1);
-                }}
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                emptyMessage="No hay docentes registrados"
-                actions={(row) => (
-                    <div className="flex gap-3">
-                        <button
-                            onClick={() => handleEdit(row)}
-                            className="text-blue-600 hover:text-blue-900 font-medium"
-                        >
-                            Editar
-                        </button>
-                        <button
-                            onClick={() => handleDelete(row.persona_id)}
-                            className="text-red-600 hover:text-red-900 font-medium"
-                        >
-                            Eliminar
-                        </button>
-                    </div>
-                )}
-            />
-
-            <Modal
-                open={modalOpen}
-                onClose={() => setModalOpen(false)}
-                title={isEditing ? 'Editar Docente' : 'Nuevo Docente'}
-            >
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Nombre Completo <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.nombre_completo}
-                            onChange={(e) => setFormData({ ...formData, nombre_completo: e.target.value })}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        <FieldErrorList errors={validationErrors.nombre_completo} />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Email <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        <FieldErrorList errors={validationErrors.email} />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            CI <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.ci}
-                            onChange={(e) => setFormData({ ...formData, ci: e.target.value })}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        <FieldErrorList errors={validationErrors.ci} />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Código Docente <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.codigo_docente}
-                            onChange={(e) => setFormData({ ...formData, codigo_docente: e.target.value })}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        <FieldErrorList errors={validationErrors.codigo_docente} />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Teléfono
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.telefono_contacto}
-                            onChange={(e) => setFormData({ ...formData, telefono_contacto: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        <FieldErrorList errors={validationErrors.telefono_contacto} />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Dirección
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.direccion}
-                            onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        <FieldErrorList errors={validationErrors.direccion} />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Contraseña {!isEditing && <span className="text-red-500">*</span>}
-                        </label>
-                        <input
-                            type="password"
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            required={!isEditing}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        {isEditing && <p className="text-xs text-gray-500 mt-1">Dejar en blanco para no cambiar</p>}
-                        <FieldErrorList errors={validationErrors.password} />
-                    </div>
-
-                    <div className="flex justify-end gap-3 pt-4 border-t">
-                        <button
-                            type="button"
-                            onClick={() => setModalOpen(false)}
-                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                        >
-                            {isEditing ? 'Actualizar' : 'Crear'}
-                        </button>
-                    </div>
-                </form>
-            </Modal>
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Docentes</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Gestiona la información de los docentes registrados
+          </p>
         </div>
-    );
+        <button type="button" onClick={handleCreate} className="btn-primary">
+          + Nuevo docente
+        </button>
+      </div>
+
+      {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
+
+      <DataTable
+        columns={columns}
+        data={filteredDocentes}
+        loading={loading}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        perPage={perPage}
+        total={total}
+        onPageChange={setCurrentPage}
+        onPerPageChange={(value) => {
+          setPerPage(value);
+          setCurrentPage(1);
+        }}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        emptyMessage="Aún no hay docentes registrados"
+        actions={(row) => (
+          <>
+            <button type="button" className="table-action-button" onClick={() => handleEdit(row)}>
+              Editar
+            </button>
+            <button
+              type="button"
+              className="table-action-button danger"
+              onClick={() => handleDelete(row.persona_id)}
+            >
+              Eliminar
+            </button>
+          </>
+        )}
+      />
+
+      <Modal
+        open={modalOpen}
+        title={isEditing ? 'Editar docente' : 'Nuevo docente'}
+        onClose={() => setModalOpen(false)}
+      >
+        <form onSubmit={handleSubmit} className="form-layout">
+          <div className="form-section">
+            <p className="form-section-title">Información del docente</p>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>
+                  Nombre completo <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className="input"
+                  type="tel"
+                  placeholder="María Pérez"
+                  value={formData.nombre_completo}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, nombre_completo: e.target.value }))}
+                  required
+                />
+                <FieldErrorList errors={validationErrors.nombre_completo} />
+              </div>
+
+              <div className="form-field">
+                <label>
+                  CI <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="12345678"
+                  value={formData.ci}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, ci: e.target.value }))}
+                  required
+                />
+                <FieldErrorList errors={validationErrors.ci} />
+              </div>
+
+              <div className="form-field">
+                <label>
+                  Código docente <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="DOC101"
+                  value={formData.codigo_docente}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, codigo_docente: e.target.value }))
+                  }
+                  required
+                />
+                <FieldErrorList errors={validationErrors.codigo_docente} />
+              </div>
+
+              <div className="form-field">
+                <label>Teléfono</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="+591 70000000"
+                  value={formData.telefono_contacto}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, telefono_contacto: e.target.value }))
+                  }
+                />
+                <FieldErrorList errors={validationErrors.telefono_contacto} />
+              </div>
+
+              <div className="form-field form-field-full">
+                <label>Dirección</label>
+                <textarea
+                  className="input"
+                  rows="2"
+                  placeholder="Av. Siempre Viva 123"
+                  value={formData.direccion}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, direccion: e.target.value }))}
+                />
+                <FieldErrorList errors={validationErrors.direccion} />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-section">
+            <p className="form-section-title">Credenciales de acceso</p>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>
+                  Correo institucional <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className="input"
+                  type="email"
+                  placeholder="docente@gestion.edu"
+                  value={formData.email}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                  required
+                />
+                <FieldErrorList errors={validationErrors.email} />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button type="button" className="btn-secondary" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary">
+              {isEditing ? 'Actualizar docente' : 'Crear docente'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
 }
 
 export default DocentesPage;
