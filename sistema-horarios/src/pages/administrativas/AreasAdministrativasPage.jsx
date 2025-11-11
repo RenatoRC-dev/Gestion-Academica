@@ -53,14 +53,17 @@ export default function AreasAdministrativasPage() {
   };
 
   const handleCreate = () => {
+    console.log('➕ ABRIENDO CREACIÓN de nueva área');
     setIsEditing(false);
     setCurrentArea(null);
     setFormData(emptyForm);
     setValidationErrors({});
     setModalOpen(true);
+    console.log('✅ Estado actualizado - isEditing:', false, 'currentArea:', null);
   };
 
   const handleEdit = (area) => {
+    console.log('📝 ABRIENDO EDICIÓN de área:', area);
     setIsEditing(true);
     setCurrentArea(area);
     setFormData({
@@ -70,6 +73,11 @@ export default function AreasAdministrativasPage() {
     });
     setValidationErrors({});
     setModalOpen(true);
+    console.log('✅ Estado actualizado - isEditing:', true, 'currentArea:', area, 'formData:', {
+      nombre: area.nombre,
+      descripcion: area.descripcion,
+      activo: area.activo,
+    });
   };
 
   const handleDelete = async (area) => {
@@ -77,10 +85,16 @@ export default function AreasAdministrativasPage() {
     if (!confirmed) return;
 
     try {
-      await api.delete(`/areas-administrativas/${area.id}`);
+      console.log('🗑️ ELIMINANDO área ID:', area.id);
+      const response = await api.delete(`/areas-administrativas/${area.id}`);
+      console.log('✅ Respuesta delete:', response.data);
       setSuccess('Área administrativa eliminada correctamente');
-      fetchAreas();
+
+      // Forzar recarga de la lista
+      setLoading(true);
+      await fetchAreas();
     } catch (err) {
+      console.error('❌ Error al eliminar:', err.response?.data || err.message);
       setError(parseApiError(err));
     }
   };
@@ -101,18 +115,19 @@ export default function AreasAdministrativasPage() {
     setSuccess(null);
 
     try {
-      if (isEditing && currentArea) {
-        console.log(`Actualizando área ${currentArea.id} con:`, formData);
+      if (isEditing && currentArea && currentArea.id) {
+        console.log('🔄 ACTUALIZANDO área ID:', currentArea.id, 'con datos:', formData);
         await api.put(`/areas-administrativas/${currentArea.id}`, formData);
         setSuccess('Área administrativa actualizada correctamente');
       } else {
-        console.log('Creando nueva área con:', formData);
+        console.log('✨ CREANDO nueva área con datos:', formData);
         await api.post('/areas-administrativas', formData);
         setSuccess('Área administrativa creada correctamente');
       }
       handleCloseModal();
-      fetchAreas();
+      await fetchAreas();
     } catch (err) {
+      console.error('❌ Error en submit:', err.response?.data || err.message);
       if (err.response?.status === 422) {
         setValidationErrors(err.response?.data?.errors || {});
       } else {
@@ -192,10 +207,17 @@ export default function AreasAdministrativasPage() {
 
       <Modal
         open={modalOpen}
-        title={isEditing ? 'Editar área administrativa' : 'Nueva área administrativa'}
+        title={isEditing ? `Editar área administrativa (ID: ${currentArea?.id})` : 'Nueva área administrativa'}
         onClose={handleCloseModal}
       >
         <form onSubmit={handleSubmit} className="form-layout">
+          {/* Debug info */}
+          <div style={{ padding: '0.5rem', background: '#f0f0f0', fontSize: '0.75rem', fontFamily: 'monospace', marginBottom: '1rem' }}>
+            <div>🔍 DEBUG: isEditing = {String(isEditing)}</div>
+            <div>🔍 DEBUG: currentArea.id = {currentArea?.id || 'null'}</div>
+            <div>🔍 DEBUG: formData = {JSON.stringify(formData)}</div>
+          </div>
+
           <div className="form-section">
             <p className="form-section-title">Información principal</p>
             <div className="form-grid">
