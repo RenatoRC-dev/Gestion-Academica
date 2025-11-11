@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '../../services/api.js';
 import DataTable from '../../components/DataTable.jsx';
 import Alert from '../../components/Alert.jsx';
@@ -18,6 +18,7 @@ const emptyForm = {
 
 export default function AdministrativosPage() {
   const [administrativos, setAdministrativos] = useState([]);
+  const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,8 +33,21 @@ export default function AdministrativosPage() {
   const [validationErrors, setValidationErrors] = useState({});
 
   useEffect(() => {
+    fetchAreas();
     fetchAdministrativos();
   }, [currentPage, perPage]);
+
+  const fetchAreas = async () => {
+    try {
+      const response = await api.get('/areas-administrativas', {
+        params: { per_page: 100 },
+      });
+      const payload = response.data?.data || {};
+      setAreas(Array.isArray(payload.data) ? payload.data : []);
+    } catch (err) {
+      console.error('Error al cargar áreas:', err);
+    }
+  };
 
   const fetchAdministrativos = async () => {
     setLoading(true);
@@ -118,10 +132,11 @@ export default function AdministrativosPage() {
     { header: 'Correo', accessor: 'persona.usuario.email' },
     { header: 'CI', accessor: 'persona.ci' },
     { header: 'Teléfono', accessor: 'persona.telefono_contacto' },
+    { header: 'Dirección', accessor: 'persona.direccion', render: (row) => row.persona?.direccion ?? '-' },
     {
       header: 'Área',
-      accessor: 'areaAdministrativa.nombre',
-      render: (row) => row.areaAdministrativa?.nombre ?? '-',
+      accessor: 'areaAdministrativa',
+      render: (row) => row.areaAdministrativa?.nombre ?? 'Sin asignar',
     },
   ];
 
@@ -260,10 +275,9 @@ export default function AdministrativosPage() {
                 />
               </div>
               <div className="form-field">
-                <label>Área administrativa (ID)</label>
-                <input
+                <label>Área administrativa</label>
+                <select
                   className="input"
-                  type="number"
                   value={formData.area_administrativa_id}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -271,8 +285,14 @@ export default function AdministrativosPage() {
                       area_administrativa_id: e.target.value ? Number(e.target.value) : '',
                     }))
                   }
-                  placeholder="Opcional"
-                />
+                >
+                  <option value="">Selecciona un área...</option>
+                  {areas.map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.nombre}
+                    </option>
+                  ))}
+                </select>
                 <FieldErrorList errors={validationErrors.area_administrativa_id} />
               </div>
             </div>
