@@ -10,6 +10,11 @@ class BloqueHorario extends Model
     protected $fillable = ['dia_id', 'horario_id', 'activo', 'created_by', 'updated_by'];
     public $timestamps = true;
 
+    // ✅ CORRECCIÓN CRÍTICA: Cast de activo a boolean
+    protected $casts = [
+        'activo' => 'boolean',
+    ];
+
     public function dia()
     {
         return $this->belongsTo(Dia::class, 'dia_id');

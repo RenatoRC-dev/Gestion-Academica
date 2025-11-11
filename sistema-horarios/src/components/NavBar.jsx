@@ -48,7 +48,7 @@ export default function NavBar() {
                     <nav className="hidden md:flex items-center gap-1 ml-4">
                         {/* Rutas comunes */}
                         <Item to="/horarios">Horarios</Item>
-                        <Item to="/asistencias/escanear-qr">Escanear QR</Item>
+                        <Item to="/asistencias/qr">Generar y Escanear QR</Item>
                         <Item to="/asistencias/confirmar-virtual">Confirmar Virtual</Item>
 
                         {/* Rutas de administración */}
@@ -59,11 +59,12 @@ export default function NavBar() {
                                 <Item to="/bitacora">Bitácora</Item>
                                 <Item to="/periodos">Períodos</Item>
                                 <Item to="/docentes">Docentes</Item>
+                                <Item to="/areas-academicas">Áreas Académicas</Item>
                                 <Item to="/aulas">Aulas</Item>
                                 <Item to="/materias">Materias</Item>
                                 <Item to="/grupos">Grupos</Item>
                                 <Item to="/horarios/generar">Generar Horarios</Item>
-                                <Item to="/asistencias/generar-qr">Generar QR</Item>
+                                <Item to="/asistencias/qr">Generar QR</Item>
                             </>
                         )}
                     </nav>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import DataTable from '../../components/DataTable.jsx';
 import Modal from '../../components/Modal.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
@@ -16,31 +16,44 @@ export default function BloquesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 15;
+  const [totalResults, setTotalResults] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [confirm, setConfirm] = useState({ open: false, id: null });
+  const [successMsg, setSuccessMsg] = useState(null);
 
-  useEffect(() => {
-    cargarBloques();
-    cargarCatalogos();
-  }, []);
-
-  const cargarBloques = async () => {
+  const cargarBloques = useCallback(async () => {
     setLoading(true);
     try {
-    const response = await api.get('/bloques-horarios', { params: { per_page: 100 } });
+      const response = await api.get('/bloques-horarios', {
+        params: { page, per_page: itemsPerPage },
+      });
       if (response.data.success) {
-        setBloques(response.data.data.data || response.data.data || []);
+        const payload = response.data.data;
+        const data = payload?.data ?? payload ?? [];
+        setBloques(data);
+        const lastPage = Math.max(1, payload?.last_page ?? 1);
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
+        const totalCount = payload?.total ?? data.length;
+        setBloques(data);
+        setTotalResults(totalCount);
+        setTotalPages(lastPage);
+        setError(null);
       }
-      setError(null);
     } catch (err) {
       setError('Error al cargar bloques horarios');
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, itemsPerPage]);
 
   const cargarCatalogos = async () => {
     try {
@@ -52,15 +65,25 @@ export default function BloquesPage() {
     }
   };
 
-  const filtered = bloques.filter((bloque) => {
-    if (!search.trim()) return true;
-    const needle = search.toLowerCase();
-    const dia = bloque.dia?.nombre?.toLowerCase() || '';
-    const horario = `${bloque.horario?.hora_inicio || ''} ${bloque.horario?.hora_fin || ''}`.toLowerCase();
-    return dia.includes(needle) || horario.includes(needle);
-  });
+  useEffect(() => {
+    cargarBloques();
+  }, [cargarBloques]);
 
-  const columns = [
+  useEffect(() => {
+    cargarCatalogos();
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return bloques;
+    const needle = search.toLowerCase();
+    return bloques.filter((bloque) => {
+      const dia = bloque.dia?.nombre?.toLowerCase() || '';
+      const horario = `${bloque.horario?.hora_inicio || ''} ${bloque.horario?.hora_fin || ''}`.toLowerCase();
+      return dia.includes(needle) || horario.includes(needle);
+    });
+  }, [search, bloques]);
+
+const columns = [
     { header: 'Día', render: (row) => row.dia?.nombre ?? '-' },
     {
       header: 'Horario',
@@ -70,9 +93,22 @@ export default function BloquesPage() {
     {
       header: 'Estado',
       render: (row) => (
-        <span className={row.activo ? 'text-green-600 font-semibold' : 'text-gray-500'}>
-          {row.activo ? 'Activo' : 'Inactivo'}
-        </span>
+        <button
+          type="button"
+          onClick={() => toggleActivo(row)}
+          aria-pressed={row.activo}
+          style={{
+            padding: '0.25rem 0.75rem',
+            borderRadius: '999px',
+            border: '1px solid #CBD5F5',
+            backgroundColor: row.activo ? '#059669' : '#DC2626',
+            color: '#fff',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {row.activo ? 'Activo' : 'Desactivado'}
+        </button>
       ),
       align: 'center',
     },
@@ -100,16 +136,41 @@ export default function BloquesPage() {
     setError(null);
 
     try {
-      if (editing) {
-        await bloqueService.update(editing.id, form);
-      } else {
-        await bloqueService.create(form);
+      const response = editing
+        ? await bloqueService.update(editing.id, form)
+        : await bloqueService.create(form);
+
+      if (response?.success || response?.data?.success) {
+        setSuccessMsg(editing ? 'Bloque horario actualizado exitosamente' : 'Bloque horario creado exitosamente');
+        setOpenForm(false);
+        setForm(emptyForm);
+        setEditing(null);
+        await cargarBloques();
       }
-      setOpenForm(false);
-      setForm(emptyForm);
-      cargarBloques();
     } catch (err) {
       setError(err.response?.data?.message || 'Error al guardar bloque horario');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleActivo = async (bloque) => {
+    if (!bloque) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // ✅ CORRECCIÓN: Enviar boolean en lugar de 0/1
+      const isActive = Boolean(bloque.activo);
+      const payload = { activo: !isActive };
+
+      const response = await bloqueService.update(bloque.id, payload);
+
+      if (response?.success || response?.data?.success) {
+        setSuccessMsg(`Bloque horario ${!isActive ? 'activado' : 'desactivado'} exitosamente`);
+        await cargarBloques();
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error cambiando el estado del bloque');
     } finally {
       setLoading(false);
     }
@@ -118,9 +179,11 @@ export default function BloquesPage() {
   const confirmDelete = async () => {
     if (!confirm.id) return;
     setLoading(true);
+    setError(null);
     try {
       await bloqueService.remove(confirm.id);
-      cargarBloques();
+      setSuccessMsg('Bloque horario eliminado exitosamente');
+      await cargarBloques();
     } catch (err) {
       setError(err.response?.data?.message || 'Error al eliminar bloque horario');
     } finally {
@@ -128,8 +191,6 @@ export default function BloquesPage() {
       setConfirm({ open: false, id: null });
     }
   };
-
-  const perPage = filtered.length || 1;
 
   return (
     <div className="space-y-6">
@@ -140,17 +201,17 @@ export default function BloquesPage() {
       </PageHeader>
 
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
+      {successMsg && <Alert type="success" message={successMsg} onClose={() => setSuccessMsg(null)} />}
 
       <DataTable
         columns={columns}
         data={filtered}
         loading={loading}
-        currentPage={1}
-        totalPages={1}
-        perPage={perPage}
-        total={filtered.length}
-        onPageChange={() => {}}
-        onPerPageChange={null}
+        currentPage={page}
+        totalPages={totalPages}
+        perPage={itemsPerPage}
+        total={totalResults}
+        onPageChange={setPage}
         searchTerm={search}
         onSearchChange={setSearch}
         emptyMessage="Aún no hay bloques horarios registrados"
@@ -169,7 +230,6 @@ export default function BloquesPage() {
           </>
         )}
       />
-
       <Modal
         open={openForm}
         title={editing ? 'Editar bloque horario' : 'Nuevo bloque horario'}

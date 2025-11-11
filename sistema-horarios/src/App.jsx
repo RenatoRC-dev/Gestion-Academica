@@ -22,6 +22,7 @@ import MateriasPage from './pages/academica/MateriasPage.jsx';
 import GruposPage from './pages/academica/GruposPage.jsx';
 import BloquesPage from './pages/academica/BloquesPage.jsx';
 import AdministrativosPage from './pages/academica/AdministrativosPage.jsx';
+import AreasAcademicasPage from './pages/academica/AreasAcademicasPage.jsx';
 
 // Páginas de Horarios
 import VisualizarHorarioPage from './pages/horarios/VisualizarHorarioPage.jsx';
@@ -29,9 +30,8 @@ import EditarHorarioPage from './pages/horarios/EditarHorarioPage.jsx';
 import GenerarHorarioPage from './pages/horarios/GenerarHorarioPage.jsx';
 
 // Páginas de Asistencia
-import GenerarQRPage from './pages/asistencia/GenerarQRPage.jsx';
-import EscanearQRPage from './pages/asistencia/EscanearQRPage.jsx';
-import ConfirmarAsistenciaPage from './pages/asistencia/ConfirmarAsistenciaPage.jsx';
+import GenerarEscanearQRPage from './pages/asistencia/GenerarEscanearQRPage.jsx';
+  import ConfirmarAsistenciaPage from './pages/asistencia/ConfirmarAsistenciaPage.jsx';
 
 function Splash() {
     return (
@@ -82,8 +82,7 @@ function AuthContent() {
                         <Route path="/horarios/editar/:id" element={<EditarHorarioPage />} />
 
                         {/* Asistencias */}
-                        <Route path="/asistencias/generar-qr" element={<GenerarQRPage />} />
-                        <Route path="/asistencias/escanear-qr" element={<EscanearQRPage />} />
+                        <Route path="/asistencias/qr" element={<GenerarEscanearQRPage />} />
                         <Route path="/asistencias/confirmar-virtual" element={<ConfirmarAsistenciaPage />} />
                     </Route>
 
@@ -102,6 +101,7 @@ function AuthContent() {
                         <Route path="/bloques" element={<BloquesPage />} />
                         <Route path="/administrativos" element={<AdministrativosPage />} />
                         <Route path="/horarios/generar" element={<GenerarHorarioPage />} />
+                        <Route path="/areas-academicas" element={<AreasAcademicasPage />} />
                     </Route>
 
                     {/* 404 */}
@@ -111,5 +111,3 @@ function AuthContent() {
         </>
     );
 }
-
-

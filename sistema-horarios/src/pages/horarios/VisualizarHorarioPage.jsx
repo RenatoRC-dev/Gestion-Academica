@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import horarioService from '../../services/horarioService.js';
+import api from '../../services/api.js';
 import DataTable from '../../components/DataTable.jsx';
 import Alert from '../../components/Alert.jsx';
 import Can from '../../components/Can.jsx';
@@ -17,17 +18,74 @@ function VisualizarHorarioPage() {
     const [perPage, setPerPage] = useState(10);
     const [totalPages, setTotalPages] = useState(1);
     const [total, setTotal] = useState(0);
+    const [docentesList, setDocentesList] = useState([]);
+    const [materiasList, setMateriasList] = useState([]);
+    const [gruposList, setGruposList] = useState([]);
+    const [periodosList, setPeriodosList] = useState([]);
+    const [filters, setFilters] = useState({
+        docente_id: '',
+        materia_id: '',
+        grupo_id: '',
+        pattern: '',
+        periodo_id: '',
+        activo: ''
+    });
 
     useEffect(() => {
         fetchHorarios();
-    }, [currentPage, perPage]);
+    }, [
+        currentPage,
+        perPage,
+        searchTerm,
+        filters.docente_id,
+        filters.materia_id,
+        filters.grupo_id,
+        filters.pattern,
+        filters.periodo_id,
+        filters.activo,
+    ]);
+
+    useEffect(() => {
+        loadCatalogs();
+    }, []);
+
+    const loadCatalogs = async () => {
+        try {
+            const [docentesRes, materiasRes, gruposRes, periodosRes] = await Promise.all([
+                api.get('/docentes', { params: { per_page: 100 } }),
+                api.get('/materias', { params: { per_page: 100 } }),
+                api.get('/grupos', { params: { per_page: 100 } }),
+                api.get('/periodos', { params: { per_page: 100 } }),
+            ]);
+            const docentes = docentesRes?.data?.data?.data ?? docentesRes?.data?.data ?? docentesRes?.data ?? [];
+            const materias = materiasRes?.data?.data?.data ?? materiasRes?.data?.data ?? materiasRes?.data ?? [];
+            const grupos = gruposRes?.data?.data?.data ?? gruposRes?.data?.data ?? gruposRes?.data ?? [];
+            const periodos = periodosRes?.data?.data?.data ?? periodosRes?.data?.data ?? periodosRes?.data ?? [];
+            setDocentesList(docentes);
+            setMateriasList(materias);
+            setGruposList(grupos);
+            setPeriodosList(periodos);
+        } catch (err) {
+            console.error('Error cargando catálogos:', err);
+        }
+    };
 
     const fetchHorarios = async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const { rows, meta } = await horarioService.listarHorarios({ page: currentPage, per_page: perPage });
+            const { rows, meta } = await horarioService.listarHorarios({
+                page: currentPage,
+                per_page: perPage,
+                search: searchTerm.trim(),
+                docente_id: filters.docente_id,
+                materia_id: filters.materia_id,
+                grupo_id: filters.grupo_id,
+                pattern: filters.pattern,
+                periodo_id: filters.periodo_id,
+                activo: filters.activo,
+            });
 
             setHorarios(rows);
             setTotal(meta.total);
@@ -40,18 +98,6 @@ function VisualizarHorarioPage() {
         }
     };
 
-    const filteredHorarios = useMemo(() => {
-        if (!searchTerm) return horarios;
-
-        const term = searchTerm.toLowerCase();
-        return horarios.filter((h) =>
-            h.docente?.persona?.nombre_completo?.toLowerCase().includes(term) ||
-            h.grupo?.codigo_grupo?.toLowerCase().includes(term) ||
-            h.aula?.codigo_aula?.toLowerCase().includes(term) ||
-            h.grupo?.materia?.nombre?.toLowerCase().includes(term)
-        );
-    }, [horarios, searchTerm]);
-
     const handleDelete = async (id) => {
         if (!window.confirm('¿Estás seguro de eliminar este horario?')) return;
 
@@ -61,6 +107,25 @@ function VisualizarHorarioPage() {
         } catch (err) {
             setError(parseApiError(err));
         }
+    };
+
+    const handleToggleActivo = async (row) => {
+        try {
+            await horarioService.actualizarHorario(row.id, { activo: !row.activo });
+            fetchHorarios();
+        } catch (err) {
+            setError(parseApiError(err));
+        }
+    };
+
+    const handleSearchChange = (value) => {
+        setSearchTerm(value);
+        setCurrentPage(1);
+    };
+
+    const handleFilterChange = (field, value) => {
+        setFilters((prev) => ({ ...prev, [field]: value }));
+        setCurrentPage(1);
     };
 
     const getModalidadBadge = (modalidad) => {
@@ -94,13 +159,17 @@ function VisualizarHorarioPage() {
             sortable: true,
         },
         {
+            header: 'Período',
+            accessor: 'periodo.nombre',
+        },
+        {
             header: 'Día',
-            accessor: 'bloque_horario.dia.nombre',
+            render: (row) => row.bloque_horario?.dia?.nombre ?? row.bloqueHorario?.dia?.nombre ?? '-',
         },
         {
             header: 'Horario',
             render: (row) => {
-                const bloque = row.bloque_horario;
+                const bloque = row.bloque_horario ?? row.bloqueHorario;
                 if (!bloque) return '-';
                 return `${bloque.horario?.hora_inicio || ''} - ${bloque.horario?.hora_fin || ''}`;
             },
@@ -116,7 +185,122 @@ function VisualizarHorarioPage() {
                 );
             },
         },
+        {
+            header: 'Autorizado',
+            render: (row) => (
+                <span
+                    className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        row.virtual_autorizado
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-600'
+                    }`}
+                >
+                    {row.virtual_autorizado ? 'Sí' : 'No'}
+                </span>
+            ),
+        },
+        {
+            header: 'Activo',
+            render: (row) => (
+                <span
+                    className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        row.activo ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                    }`}
+                >
+                    {row.activo ? 'Sí' : 'No'}
+                </span>
+            ),
+        },
     ];
+
+    const toolbarFilters = (
+            <div className="flex flex-wrap gap-3 py-2">
+                <div>
+                    <label className="text-xs uppercase tracking-wide text-gray-500">Docente</label>
+                    <select
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    value={filters.docente_id}
+                    onChange={(e) => handleFilterChange('docente_id', e.target.value)}
+                >
+                    <option value="">Todos los docentes</option>
+                    {docentesList.map((doc) => (
+                        <option key={doc.persona_id ?? doc.id} value={doc.persona_id ?? doc.id}>
+                            {doc.persona?.nombre_completo || doc.nombre_completo || `Docente ${doc.id ?? doc.persona_id}`}
+                        </option>
+                    ))}
+                </select>
+            </div>
+            <div>
+                <label className="text-xs uppercase tracking-wide text-gray-500">Materia</label>
+                <select
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    value={filters.materia_id}
+                    onChange={(e) => handleFilterChange('materia_id', e.target.value)}
+                >
+                    <option value="">Todas las materias</option>
+                    {materiasList.map((mat) => (
+                        <option key={mat.id} value={mat.id}>
+                            {mat.nombre}
+                        </option>
+                    ))}
+                </select>
+            </div>
+            <div>
+                <label className="text-xs uppercase tracking-wide text-gray-500">Grupo</label>
+                <select
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    value={filters.grupo_id}
+                    onChange={(e) => handleFilterChange('grupo_id', e.target.value)}
+                >
+                    <option value="">Todos los grupos</option>
+                    {gruposList.map((grupo) => (
+                        <option key={grupo.id} value={grupo.id}>
+                            {grupo.codigo_grupo}
+                        </option>
+                    ))}
+                </select>
+            </div>
+            <div>
+                <label className="text-xs uppercase tracking-wide text-gray-500">Patrón</label>
+                <select
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    value={filters.pattern}
+                    onChange={(e) => handleFilterChange('pattern', e.target.value)}
+                >
+                    <option value="">Todos los bloques</option>
+                    <option value="LMV">LMV (Lun/Mié/Vie)</option>
+                    <option value="MJ">MJ (Mar/Jue)</option>
+                </select>
+            </div>
+            <div>
+                <label className="text-xs uppercase tracking-wide text-gray-500">Semestre</label>
+                <select
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    value={filters.periodo_id}
+                    onChange={(e) => handleFilterChange('periodo_id', e.target.value)}
+                >
+                    <option value="">Todos los semestres</option>
+                    {periodosList.map((periodo) => (
+                        <option key={periodo.id} value={periodo.id}>
+                            {periodo.nombre}
+                        </option>
+                    ))}
+                </select>
+            </div>
+            <div>
+                <label className="text-xs uppercase tracking-wide text-gray-500">Estado</label>
+                <select
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    value={filters.activo}
+                    onChange={(e) => handleFilterChange('activo', e.target.value)}
+                >
+                    <option value="">Todos</option>
+                    <option value="true">Activos</option>
+                    <option value="false">Inactivos</option>
+                </select>
+            </div>
+        </div>
+    );
 
     return (
         <div className="space-y-6">
@@ -138,7 +322,7 @@ function VisualizarHorarioPage() {
 
             <DataTable
                 columns={columns}
-                data={filteredHorarios}
+                data={horarios}
                 loading={loading}
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -150,26 +334,33 @@ function VisualizarHorarioPage() {
                     setCurrentPage(1);
                 }}
                 searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
+                onSearchChange={handleSearchChange}
+                toolbar={toolbarFilters}
                 emptyMessage="No hay horarios disponibles"
                 actions={(row) => (
-                    <div className="flex gap-2">
-                        <Can roles={[ROLES.ADMIN, ROLES.DOCENTE]}>
-                            <button
-                                onClick={() => navigate(`/horarios/editar/${row.id}`)}
-                                className="text-blue-600 hover:text-blue-800 font-medium text-sm"
-                            >
-                                Editar
-                            </button>
-                            <button
-                                onClick={() => handleDelete(row.id)}
-                                className="text-red-600 hover:text-red-800 font-medium text-sm"
-                            >
-                                Eliminar
-                            </button>
-                        </Can>
-                    </div>
-                )}
+                <div className="flex gap-2">
+                    <Can roles={[ROLES.ADMIN, ROLES.DOCENTE]}>
+                        <button
+                            onClick={() => navigate(`/horarios/editar/${row.id}`)}
+                            className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                        >
+                            Editar
+                        </button>
+                        <button
+                            onClick={() => handleDelete(row.id)}
+                            className="text-red-600 hover:text-red-800 font-medium text-sm"
+                        >
+                            Eliminar
+                        </button>
+                        <button
+                            onClick={() => handleToggleActivo(row)}
+                            className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
+                        >
+                            {row.activo ? 'Desactivar' : 'Activar'}
+                        </button>
+                    </Can>
+                </div>
+            )}
             />
         </div>
     );

@@ -5,6 +5,8 @@ import Alert from '../../components/Alert.jsx';
 import ConflictosList from '../../components/ConflictosList.jsx';
 import FieldErrorList from '../../components/FieldErrorList.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
+import Can from '../../components/Can.jsx';
+import { ROLES } from '../../utils/roles.js';
 
 function EditarHorarioPage() {
     const navigate = useNavigate();
@@ -21,6 +23,8 @@ function EditarHorarioPage() {
         grupo_id: '',
         bloque_horario_id: '',
         modalidad_id: '',
+        periodo_id: '',
+        virtual_autorizado: false,
     });
 
     const [catalogos, setCatalogos] = useState({
@@ -30,6 +34,7 @@ function EditarHorarioPage() {
         bloques: [],
         modalidades: [],
     });
+    const [periodo, setPeriodo] = useState(null);
 
     useEffect(() => {
         loadData();
@@ -56,7 +61,10 @@ function EditarHorarioPage() {
                 grupo_id: horario.grupo_id || '',
                 bloque_horario_id: horario.bloque_horario_id || '',
                 modalidad_id: horario.modalidad_id || 1,
+                virtual_autorizado: horario.virtual_autorizado ?? false,
+                periodo_id: horario.periodo_academico_id || horario.periodo?.id || '',
             });
+            setPeriodo(horario.periodo ?? null);
 
             setCatalogos({
                 docentes: (docentesRes.data?.data?.data ?? docentesRes.data?.data ?? []),
@@ -78,8 +86,9 @@ function EditarHorarioPage() {
     };
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        const nextValue = type === 'checkbox' ? checked : value;
+        setFormData((prev) => ({ ...prev, [name]: nextValue }));
         setValidationErrors((prev) => ({ ...prev, [name]: null }));
     };
 
@@ -151,6 +160,19 @@ function EditarHorarioPage() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Período asignado
+                            </label>
+                            <input
+                                type="text"
+                                readOnly
+                                value={periodo?.nombre ?? 'Período no disponible'}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
+                            />
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -255,6 +277,24 @@ function EditarHorarioPage() {
                             </select>
                             <FieldErrorList errors={validationErrors.modalidad_id} />
                         </div>
+
+                        <Can roles={[ROLES.ADMIN, ROLES.AUTORIDAD]}>
+                            <div className="flex flex-col gap-2">
+                                <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
+                                    <input
+                                        type="checkbox"
+                                        name="virtual_autorizado"
+                                        checked={!!formData.virtual_autorizado}
+                                        onChange={handleChange}
+                                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
+                                    Clase virtual autorizada
+                                </label>
+                                <p className="text-xs text-gray-500">
+                                    Activa esto cuando la clase virtual haya sido revisada y autorizada por la autoridad académica.
+                                </p>
+                            </div>
+                        </Can>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t">

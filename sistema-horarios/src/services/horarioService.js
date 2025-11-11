@@ -1,8 +1,16 @@
 import api from './api.js';
 
 const horarioService = {
-    listarHorarios: async ({ page = 1, per_page = 15 } = {}) => {
-        const resp = await api.get('/horarios', { params: { page, per_page } });
+    listarHorarios: async ({ page = 1, per_page = 15, search = '', docente_id = '', grupo_id = '', materia_id = '', pattern = '', periodo_id = '', activo = '' } = {}) => {
+        const params = { page, per_page };
+        if (search) params.search = search;
+        if (docente_id) params.docente_id = docente_id;
+        if (grupo_id) params.grupo_id = grupo_id;
+        if (materia_id) params.materia_id = materia_id;
+        if (pattern) params.pattern = pattern;
+        if (periodo_id) params.periodo_id = periodo_id;
+        if (activo !== '') params.activo = activo;
+        const resp = await api.get('/horarios', { params });
         const p = resp?.data?.data ?? {};
         return {
             rows: Array.isArray(p?.data) ? p.data : [],
@@ -89,6 +97,21 @@ const horarioService = {
                 per_page: p?.per_page ?? 15
             }
         };
+    },
+
+    obtenerCalendario: async (horarioId) => {
+        const resp = await api.get(`/horarios/${horarioId}/calendario`);
+        return resp?.data?.data ?? [];
+    },
+
+    calendarioDocente: async () => {
+        const resp = await api.get('/horarios/calendario-docente');
+        return resp?.data?.data ?? [];
+    },
+
+    obtenerVirtualesDocente: async () => {
+        const resp = await api.get('/horarios/virtuales-docente');
+        return resp?.data?.data ?? [];
     }
 };
 

@@ -2,6 +2,10 @@ import { useNavigate } from 'react-router-dom';
 import { FaChalkboardTeacher, FaBook, FaBuilding, FaUsers, FaCalendarAlt, FaUserTie } from 'react-icons/fa';
 import { useState, useEffect } from 'react';
 import metricasService from '../services/metricasService.js';
+import horarioService from '../services/horarioService.js';
+import Alert from '../components/Alert.jsx';
+import { parseApiError } from '../utils/httpErrors.js';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const MetricCard = ({ icon, title, value, description, onClick }) => (
   <button type="button" onClick={onClick} className="metric-card">
@@ -26,6 +30,11 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [calendario, setCalendario] = useState([]);
+  const [calendarioLoading, setCalendarioLoading] = useState(false);
+  const [calendarioError, setCalendarioError] = useState(null);
+  const { user } = useAuth();
+  const esDocente = Array.isArray(user?.roles) && user.roles.includes('docente');
 
   useEffect(() => {
     const fetchMetricas = async () => {
@@ -43,6 +52,33 @@ export default function Dashboard() {
 
     fetchMetricas();
   }, []);
+
+  useEffect(() => {
+    if (!esDocente) return;
+
+    let active = true;
+    setCalendario([]);
+    setCalendarioError(null);
+    setCalendarioLoading(true);
+
+    horarioService
+      .calendarioDocente()
+      .then((data) => {
+        if (!active) return;
+        setCalendario(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setCalendarioError(parseApiError(err).message);
+      })
+      .finally(() => {
+        if (active) setCalendarioLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [esDocente]);
 
   const handleRetry = () => {
     window.location.reload();
@@ -103,13 +139,56 @@ export default function Dashboard() {
       <section className="card">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-800">Actividad reciente</h2>
-            <p className="text-sm text-gray-500">Los eventos se mostrarán aquí en cuanto existan</p>
+            <h2 className="text-lg font-semibold text-gray-800">
+              {esDocente ? 'Tu calendario de clases' : 'Actividad reciente'}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {esDocente
+                ? 'Las próximas clases programadas para tu horario académico'
+                : 'Los eventos se mostrarán aquí en cuanto existan'}
+            </p>
           </div>
         </div>
-        <div className="text-gray-500 text-sm">
-          No hay actividad registrada aún. Cuando se generen movimientos los verás aquí.
-        </div>
+
+        {esDocente ? (
+          <>
+            {calendarioError && (
+              <Alert type="warn" message={calendarioError} onClose={() => setCalendarioError(null)} />
+            )}
+            <div className="space-y-2">
+              {calendarioLoading && <p className="text-sm text-gray-500">Cargando calendario...</p>}
+              {!calendarioLoading && calendario.length === 0 && (
+                <p className="text-sm text-gray-500">No hay clases próximas en los siguientes 14 días.</p>
+              )}
+              {calendario.slice(0, 5).map((item) => (
+                <div
+                  key={`${item.horario_id ?? 'h'}-${item.fecha}-${item.hora_inicio}`}
+                  className="rounded border border-gray-200 px-3 py-2 flex justify-between items-center bg-gray-50"
+                >
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {item.dia} · {item.fecha}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {item.hora_inicio} - {item.hora_fin}
+                    </div>
+                  </div>
+                  <div className="text-xs font-medium">
+                    {item.asistencia_registrada ? (
+                      <span className="text-green-700">Registrada {item.estado && `(${item.estado})`}</span>
+                    ) : (
+                      <span className="text-gray-500">Pendiente</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="text-gray-500 text-sm">
+            No hay actividad registrada aún. Cuando se generen movimientos los verás aquí.
+          </div>
+        )}
       </section>
     </div>
   );

@@ -13,6 +13,7 @@ const emptyForm = {
   telefono_contacto: '',
   direccion: '',
   codigo_docente: '',
+  areas: [],
 };
 
 function DocentesPage() {
@@ -29,10 +30,28 @@ function DocentesPage() {
   const [currentDocente, setCurrentDocente] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [formData, setFormData] = useState(emptyForm);
+  const [areasOptions, setAreasOptions] = useState([]);
 
   useEffect(() => {
     fetchDocentes();
   }, [currentPage, perPage]);
+
+  useEffect(() => {
+    fetchAreasOptions();
+  }, []);
+
+  const fetchAreasOptions = async () => {
+    try {
+      const response = await api.get('/areas-academicas', {
+        params: { per_page: 100, activo: true },
+      });
+      const payload = response.data?.data || {};
+      const options = Array.isArray(payload.data) ? payload.data : [];
+      setAreasOptions(options);
+    } catch (err) {
+      console.error('Error cargando áreas académicas:', err);
+    }
+  };
 
   const fetchDocentes = async () => {
     setLoading(true);
@@ -62,6 +81,16 @@ function DocentesPage() {
     setModalOpen(true);
   };
 
+  const toggleAreaSelection = (areaId) => {
+    setFormData((prev) => {
+      const current = prev.areas ?? [];
+      const next = current.includes(areaId)
+        ? current.filter((id) => id !== areaId)
+        : [...current, areaId];
+      return { ...prev, areas: next };
+    });
+  };
+
   const handleEdit = (docente) => {
     setIsEditing(true);
     setCurrentDocente(docente);
@@ -72,6 +101,7 @@ function DocentesPage() {
       telefono_contacto: docente.persona?.telefono_contacto || '',
       direccion: docente.persona?.direccion || '',
       codigo_docente: docente.codigo_docente || '',
+      areas: (docente.areas ?? []).map((area) => area.id),
     });
     setValidationErrors({});
     setModalOpen(true);
@@ -118,6 +148,23 @@ function DocentesPage() {
     { header: 'Correo institucional', accessor: 'persona.usuario.email' },
     { header: 'CI', accessor: 'persona.ci' },
     { header: 'Teléfono', accessor: 'persona.telefono_contacto' },
+    {
+      header: 'Áreas',
+      render: (row) => {
+        if (!row.areas || row.areas.length === 0) {
+          return '-';
+        }
+        return (
+          <div className="flex flex-wrap gap-1">
+            {row.areas.map((area) => (
+              <span key={area.id} className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                {area.nombre}
+              </span>
+            ))}
+          </div>
+        );
+      },
+    },
   ];
 
   const filteredDocentes = searchTerm
@@ -281,6 +328,30 @@ function DocentesPage() {
                 <FieldErrorList errors={validationErrors.email} />
               </div>
             </div>
+          </div>
+
+          <div className="form-section">
+            <p className="form-section-title">Áreas académicas</p>
+            <div className="grid grid-cols-2 gap-2">
+              {areasOptions.length === 0 && (
+                <p className="text-sm text-gray-500 col-span-2">Aún no hay áreas registradas</p>
+              )}
+              {areasOptions.map((area) => (
+                <label
+                  key={area.id}
+                  className="flex items-center gap-2 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-700"
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                    checked={formData.areas?.includes(area.id)}
+                    onChange={() => toggleAreaSelection(area.id)}
+                  />
+                  <span>{area.nombre}</span>
+                </label>
+              ))}
+            </div>
+            <FieldErrorList errors={validationErrors.areas} />
           </div>
 
           <div className="form-actions">

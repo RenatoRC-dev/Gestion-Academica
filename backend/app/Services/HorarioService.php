@@ -6,10 +6,12 @@ use App\Models\Grupo;
 use App\Models\BloqueHorario;
 use App\Models\Aula;
 use App\Models\HorarioAsignado;
+use App\Exceptions\HorarioGeneracionException;
 use App\Models\Docente;
 use App\Models\ModalidadClase;
 use App\Models\PeriodoAcademico;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class HorarioService
 {
@@ -41,6 +43,10 @@ class HorarioService
     private array $ocupacion = [];
     private array $restriccionesDocentes = [];
     private array $preferencias = [];
+    private array $patterns = [
+        'LMV' => [1, 3, 5],
+        'MJ' => [2, 4],
+    ];
 
     public function __construct(float $delta = 0.15, float $lambda = 2.0, int $piso = 5)
     {
@@ -63,10 +69,18 @@ class HorarioService
         foreach ($preferencias as $preferencia) {
             $docente = $preferencia['docente_id'] ?? null;
             $grupo = $preferencia['grupo_id'] ?? null;
+            $pattern = strtoupper(trim($preferencia['pattern'] ?? 'LMV'));
+            if (!in_array($pattern, ['LMV', 'MJ'], true)) {
+                $pattern = 'LMV';
+            }
             if (!$docente || !$grupo) {
                 continue;
             }
-            $this->preferencias[] = ['docente_id' => (int)$docente, 'grupo_id' => (int)$grupo];
+            $this->preferencias[] = [
+                'docente_id' => (int)$docente,
+                'grupo_id' => (int)$grupo,
+                'pattern' => $pattern,
+            ];
         }
     }
 
@@ -100,12 +114,36 @@ class HorarioService
             throw new \Exception("Periodo académico no encontrado");
         }
 
-        // ✅ NUEVO: Verificar si ya existen horarios para este período
-        $horariosExistentes = HorarioAsignado::where('periodo_academico_id', $periodoId)->count();
-        if ($horariosExistentes > 0) {
-            throw new \Exception("Ya existen horarios generados para este período. " .
-                "Elimine los horarios existentes antes de generar nuevos.");
+        $asignacionesExistentes = HorarioAsignado::where('periodo_academico_id', $periodoId)
+            ->where('activo', true)
+            ->get();
+        $preferenciasPorGrupo = collect($this->preferencias)
+            ->keyBy('grupo_id')
+            ->map(fn($pref) => $pref['docente_id'] ?? null)
+            ->filter()
+            ->toArray();
+        $gruposPreferidos = collect($this->preferencias)
+            ->pluck('grupo_id')
+            ->map(fn ($id) => (int)$id)
+            ->filter()
+            ->values()
+            ->all();
+
+        $reassignIds = [];
+        $asignacionesExistentes = $asignacionesExistentes->reject(function ($asignacion) use ($preferenciasPorGrupo, &$reassignIds) {
+            $prefDocente = $preferenciasPorGrupo[$asignacion->grupo_id] ?? null;
+            if ($prefDocente && $prefDocente !== $asignacion->docente_id) {
+                $reassignIds[] = $asignacion->id;
+                return true;
+            }
+            return false;
+        });
+
+        if (!empty($reassignIds)) {
+            HorarioAsignado::whereIn('id', $reassignIds)->delete();
         }
+
+        $gruposAsignados = $asignacionesExistentes->pluck('grupo_id')->map(fn($id) => (int)$id)->unique()->all();
 
         $grupos = Grupo::where('periodo_academico_id', $periodoId)
             ->with('materia')
@@ -120,6 +158,8 @@ class HorarioService
                     'vetos_aulas' => []
                 ];
             })
+            ->filter(fn($g) => !in_array($g['id'], $gruposAsignados, true) || in_array($g['id'], $gruposPreferidos, true))
+            ->values()
             ->toArray();
 
         $aulas = Aula::where('es_virtual', false)
@@ -146,12 +186,18 @@ class HorarioService
                 return [
                     'id' => $b->id,
                     'dia_id' => $b->dia_id,
+                    'horario_id' => $b->horario_id,
                     'hora_inicio' => $b->horario->hora_inicio,
                     'hora_fin' => $b->horario->hora_fin,
                     'codigo' => $b->dia->nombre . ' ' . $b->horario->hora_inicio
                 ];
             })
             ->toArray();
+
+        $bloquesPorHorario = [];
+        foreach ($bloques as $bloque) {
+            $bloquesPorHorario[$bloque['horario_id']][$bloque['dia_id']] = $bloque;
+        }
 
         $docentes = Docente::with('persona')
             ->get()
@@ -165,63 +211,156 @@ class HorarioService
 
         if (empty($grupos) || empty($aulas) || empty($bloques) || empty($docentes)) {
             throw new \Exception("Datos maestros insuficientes para generar horario. " .
-                "Grupos: " . count($grupos) . ", Aulas: " . count($aulas) . 
+                "Grupos: " . count($grupos) . ", Aulas: " . count($aulas) .
                 ", Bloques: " . count($bloques) . ", Docentes: " . count($docentes));
         }
 
-        $this->asignarPreferencias($grupos, $aulas, $bloques, $docentes, $periodoId);
-        $this->ejecutarHeuristica($grupos, $aulas, $bloques, $docentes);
+        // ✅ CORRECCIÓN: Inicializar ocupación ANTES de asignar preferencias
+        $this->inicializarOcupacion($aulas, $bloques, $asignacionesExistentes);
+
+        $tienePreferencias = !empty($this->preferencias);
+        $this->asignarPreferencias($grupos, $aulas, $bloques, $docentes, $periodoId, $bloquesPorHorario);
+        if (!$tienePreferencias) {
+            $this->ejecutarHeuristica($grupos, $aulas, $bloques, $docentes, $asignacionesExistentes);
+        }
 
         $asignacionesCreadas = 0;
         $modalidad = ModalidadClase::where('nombre', 'Presencial')->first();
 
+        $rechazos = [];
         foreach ($this->asignacion as $grupoId => $asignacion) {
-            [$aulaId, $bloqueId] = $asignacion;
+            $aulaId = $asignacion['aula_id'];
+            $bloqueIds = $asignacion['bloque_ids'] ?? [];
+            if (empty($bloqueIds)) {
+                continue;
+            }
+
             $aula = collect($aulas)->firstWhere('id', $aulaId);
-
-            $docente = $this->encontrarDocenteDisponible(
-                $docentes,
-                $bloqueId,
-                $periodoId,
-                $aula ?? []
-            );
-
-            if (!$docente) {
+            if (!$aula) {
                 continue;
             }
 
-            // ✅ CORRECCIÓN CRÍTICA CU10: Validar conflictos ANTES de crear
-            $validacion = $this->validarAsignacion(
-                $grupoId,
-                $aulaId,
-                $bloqueId,
-                $periodoId,
-                $docente['id'],
-                null
-            );
+            $docentePreferidoId = $asignacion['docente_id'] ?? null;
+            $planBloques = [];
+            $conflicto = false;
+            $razon = null;
 
-            if (!$validacion['valido']) {
-                // Saltar grupo si hay conflictos
+            foreach ($bloqueIds as $bloqueIndex => $bloqueId) {
+                $docenteIdParaBloque = $docentePreferidoId;
+
+                if (!$docenteIdParaBloque) {
+                    $docenteDisponible = $this->encontrarDocenteDisponible(
+                        $docentes,
+                        $bloqueId,
+                        $periodoId,
+                        $aula
+                    );
+
+                    if (!$docenteDisponible) {
+                        $razon = "No hay docente disponible para el bloque {$bloqueId}";
+                        Log::debug('No hay docente disponible para bloque', ['grupo' => $grupoId, 'bloque' => $bloqueId]);
+                        $conflicto = true;
+                        break;
+                    }
+
+                    $docenteIdParaBloque = $docenteDisponible['id'];
+                }
+
+                $validacion = $this->validarAsignacion(
+                    $grupoId,
+                    $aulaId,
+                    $bloqueId,
+                    $periodoId,
+                    $docenteIdParaBloque,
+                    null
+                );
+
+                if ($validacion['valido']) {
+                    $planBloques[] = [
+                        'bloque_id' => $bloqueId,
+                        'docente_id' => $docenteIdParaBloque,
+                    ];
+                    continue;
+                }
+
+                $mensaje = implode(' ', $validacion['conflictos']);
+                if (stripos($mensaje, 'docente') !== false) {
+                    continue;
+                }
+
+                $bloqueAlternativo = $this->buscarBloqueAlternativo(
+                    $grupoId,
+                    $aula,
+                    $periodoId,
+                    $bloques,
+                    $bloqueId,
+                    $docentePreferidoId,
+                    $docentes
+                );
+                if ($bloqueAlternativo) {
+                    $planBloques[] = $bloqueAlternativo;
+                    continue;
+                }
+
+                Log::debug('Bloque rechazado por conflicto no docente', [
+                    'grupo' => $grupoId,
+                    'bloque' => $bloqueId,
+                    'conflictos' => $validacion['conflictos'],
+                ]);
+
+                $razon = $mensaje ?: "Conflicto en el bloque {$bloqueId}";
+                $conflicto = true;
+                break;
+            }
+
+            if ($conflicto || empty($planBloques)) {
+                $motivo = $razon;
+                if (!$motivo) {
+                    if (empty($bloqueIds)) {
+                        $motivo = 'No se encontró ningún bloque disponible para este grupo';
+                    } elseif ($docentePreferidoId) {
+                        $motivo = "El docente preferido {$docentePreferidoId} no pudo cubrir los bloques requeridos";
+                    } else {
+                        $motivo = 'No se pudieron asignar bloques disponibles para este grupo';
+                    }
+                }
+                $rechazos[] = [
+                    'grupo_id' => $grupoId,
+                    'razon' => $motivo,
+                    'bloques' => $bloqueIds,
+                    'docente_id' => $docentePreferidoId,
+                ];
                 continue;
             }
 
-            HorarioAsignado::create([
-                'grupo_id' => $grupoId,
-                'docente_id' => $docente['id'],
-                'aula_id' => $aulaId,
-                'bloque_horario_id' => $bloqueId,
-                'periodo_academico_id' => $periodoId,
-                'modalidad_id' => $modalidad->id
-            ]);
-
-            $asignacionesCreadas++;
+            foreach ($planBloques as $bloqueAsignado) {
+                HorarioAsignado::create([
+                    'grupo_id' => $grupoId,
+                    'docente_id' => $bloqueAsignado['docente_id'],
+                    'aula_id' => $aulaId,
+                    'bloque_horario_id' => $bloqueAsignado['bloque_id'],
+                    'periodo_academico_id' => $periodoId,
+                    'modalidad_id' => $modalidad->id,
+                    'activo' => true
+                ]);
+                $asignacionesCreadas++;
+            }
         }
+
+        if (!empty($rechazos)) {
+            $primero = $rechazos[0];
+            $mensaje = "No se pudo generar el horario para el grupo {$primero['grupo_id']}: {$primero['razon']}";
+            throw new HorarioGeneracionException($mensaje, $rechazos);
+        }
+
+        $gruposProcesados = count($this->asignacion);
+        $tasaExito = $gruposProcesados === 0 ? '0%' : round(($asignacionesCreadas / $gruposProcesados) * 100, 2) . '%';
 
         return [
             'periodo_id' => $periodoId,
-            'grupos_procesados' => count($grupos),
+            'grupos_procesados' => $gruposProcesados,
             'asignaciones_creadas' => $asignacionesCreadas,
-            'tasa_exito' => round(($asignacionesCreadas / count($grupos)) * 100, 2) . '%',
+            'tasa_exito' => $tasaExito,
             'valor_objetivo' => $this->calcularValorObjetivo($grupos, $aulas),
             'estadisticas' => [
                 'total_aulas_disponibles' => count($aulas),
@@ -235,6 +374,7 @@ class HorarioService
     {
         $docentesOcupados = HorarioAsignado::where('bloque_horario_id', $bloqueId)
             ->where('periodo_academico_id', $periodoId)
+            ->where('activo', true)
             ->pluck('docente_id')
             ->toArray();
 
@@ -252,17 +392,40 @@ class HorarioService
         return null;
     }
 
-    private function ejecutarHeuristica(array &$grupos, array &$aulas, array &$bloques, array &$docentes): void
+    /**
+     * ✅ CORRECCIÓN: Inicializa el array de ocupación con asignaciones existentes
+     */
+    private function inicializarOcupacion(array $aulas, array $bloques, Collection $asignacionesExistentes): void
     {
-        $this->asignacion = [];
         $this->ocupacion = [];
 
+        // Inicializar todos los slots como disponibles
         foreach ($aulas as $aula) {
             foreach ($bloques as $bloque) {
                 $key = $aula['id'] . '|' . $bloque['id'];
                 $this->ocupacion[$key] = null;
             }
         }
+
+        // Marcar slots ocupados por asignaciones existentes activas
+        foreach ($asignacionesExistentes as $asignacion) {
+            $key = $asignacion->aula_id . '|' . $asignacion->bloque_horario_id;
+            $this->ocupacion[$key] = $asignacion->grupo_id;
+        }
+
+        // Marcar slots ocupados por asignaciones ya realizadas en esta ejecución
+        foreach ($this->asignacion as $grupoId => $asignacion) {
+            foreach ($asignacion['bloque_ids'] as $bloqueId) {
+                $key = $asignacion['aula_id'] . '|' . $bloqueId;
+                $this->ocupacion[$key] = $grupoId;
+            }
+        }
+    }
+
+    private function ejecutarHeuristica(array &$grupos, array &$aulas, array &$bloques, array &$docentes, Collection $asignacionesExistentes): void
+    {
+        // Reutilizar el método de inicialización
+        $this->inicializarOcupacion($aulas, $bloques, $asignacionesExistentes);
 
         usort($grupos, function ($a, $b) {
             if ($a['tamano'] !== $b['tamano']) {
@@ -274,6 +437,9 @@ class HorarioService
         });
 
         foreach ($grupos as $grupo) {
+            if (isset($this->asignacion[$grupo['id']])) {
+                continue;
+            }
             $mejorPenal = 1e18;
             $mejorPar = null;
 
@@ -303,15 +469,22 @@ class HorarioService
 
                     if ($penal < $mejorPenal) {
                         $mejorPenal = $penal;
-                        $mejorPar = [$aula['id'], $bloque['id']];
+                        $mejorPar = [
+                            'aula_id' => $aula['id'],
+                            'bloque_ids' => [$bloque['id']],
+                            'pattern' => null,
+                            'docente_id' => null
+                        ];
                     }
                 }
             }
 
             if ($mejorPar !== null) {
                 $this->asignacion[$grupo['id']] = $mejorPar;
-                $key = $mejorPar[0] . '|' . $mejorPar[1];
-                $this->ocupacion[$key] = $grupo['id'];
+                foreach ($mejorPar['bloque_ids'] as $bloqueId) {
+                    $key = $mejorPar['aula_id'] . '|' . $bloqueId;
+                    $this->ocupacion[$key] = $grupo['id'];
+                }
             }
         }
     }
@@ -324,11 +497,13 @@ class HorarioService
         foreach ($grupos as $grupo) {
             if (isset($this->asignacion[$grupo['id']])) {
                 $totalAlumnos += $grupo['tamano'];
-                [$aulaId, $_] = $this->asignacion[$grupo['id']];
-                
+                $asignacion = $this->asignacion[$grupo['id']];
+                $aulaId = $asignacion['aula_id'];
+                $bloquesCount = count($asignacion['bloque_ids'] ?? []);
+
                 $aula = collect($aulas)->firstWhere('id', $aulaId);
                 if ($aula) {
-                    $totalPenal += $this->calcularPenalidad($grupo, $aula);
+                    $totalPenal += $this->calcularPenalidad($grupo, $aula) * max(1, $bloquesCount);
                 }
             }
         }
@@ -336,7 +511,7 @@ class HorarioService
         return $totalAlumnos - $totalPenal;
     }
 
-    private function asignarPreferencias(array &$grupos, array &$aulas, array $bloques, array $docentes, int $periodoId): void
+    private function asignarPreferencias(array &$grupos, array &$aulas, array $bloques, array $docentes, int $periodoId, array $bloquesPorHorario): void
     {
         if (empty($this->preferencias)) {
             return;
@@ -348,6 +523,7 @@ class HorarioService
         foreach ($this->preferencias as $preferencia) {
             $grupoId = $preferencia['grupo_id'];
             $docenteId = $preferencia['docente_id'];
+            $pattern = strtoupper($preferencia['pattern'] ?? 'LMV');
 
             if (!isset($gruposPorId[$grupoId]) || !isset($docentesPorId[$docenteId])) {
                 continue;
@@ -357,6 +533,7 @@ class HorarioService
                 continue;
             }
 
+            $diasPatron = $this->obtenerDiasPorPatron($pattern);
             $mejorPenal = 1e18;
             $mejorPar = null;
 
@@ -370,12 +547,28 @@ class HorarioService
                 }
 
                 foreach ($bloques as $bloque) {
-                    $key = $aula['id'] . '|' . $bloque['id'];
-                    if ($this->ocupacion[$key] ?? null) {
+                    if (!in_array($bloque['dia_id'], $diasPatron, true)) {
                         continue;
                     }
 
-                    if (in_array($bloque['id'], $gruposPorId[$grupoId]['vetos_bloques'])) {
+                    $bloquesDelPatron = $this->obtenerBloquesPorPatron($bloquesPorHorario, $bloque['horario_id'], $pattern);
+                    if (empty($bloquesDelPatron)) {
+                        continue;
+                    }
+
+                    $ocupado = false;
+                    foreach ($bloquesDelPatron as $bloqueSeleccionado) {
+                        if (in_array($bloqueSeleccionado['id'], $gruposPorId[$grupoId]['vetos_bloques'])) {
+                            $ocupado = true;
+                            break;
+                        }
+                        $key = $aula['id'] . '|' . $bloqueSeleccionado['id'];
+                        if (($this->ocupacion[$key] ?? null) !== null) {
+                            $ocupado = true;
+                            break;
+                        }
+                    }
+                    if ($ocupado) {
                         continue;
                     }
 
@@ -383,20 +576,101 @@ class HorarioService
                         continue;
                     }
 
-                    $penal = $this->calcularPenalidad($gruposPorId[$grupoId], $aula);
+                    $penal = $this->calcularPenalidad($gruposPorId[$grupoId], $aula) * count($bloquesDelPatron);
                     if ($penal < $mejorPenal) {
                         $mejorPenal = $penal;
-                        $mejorPar = [$aula['id'], $bloque['id']];
+                        $mejorPar = [
+                            'aula_id' => $aula['id'],
+                            'bloque_ids' => collect($bloquesDelPatron)->pluck('id')->all(),
+                            'pattern' => $pattern,
+                            'docente_id' => $docenteId,
+                        ];
                     }
                 }
             }
 
             if ($mejorPar !== null) {
                 $this->asignacion[$grupoId] = $mejorPar;
-                $key = $mejorPar[0] . '|' . $mejorPar[1];
-                $this->ocupacion[$key] = $grupoId;
+                foreach ($mejorPar['bloque_ids'] as $bloqueId) {
+                    $key = $mejorPar['aula_id'] . '|' . $bloqueId;
+                    $this->ocupacion[$key] = $grupoId;
+                }
             }
         }
+    }
+
+    private function obtenerBloquesPorPatron(array $bloquesPorHorario, int $horarioId, string $pattern): array
+    {
+        $dias = $this->obtenerDiasPorPatron($pattern);
+        $resultados = [];
+
+        foreach ($dias as $diaId) {
+            $bloque = $bloquesPorHorario[$horarioId][$diaId] ?? null;
+            if (!$bloque) {
+                return [];
+            }
+            $resultados[] = $bloque;
+        }
+
+        return $resultados;
+    }
+
+    private function buscarBloqueAlternativo(
+        int $grupoId,
+        array $aula,
+        int $periodoId,
+        array $bloques,
+        int $bloqueActualId,
+        ?int $docentePreferidoId,
+        array $docentes
+    ): ?array {
+        $bloqueActual = collect($bloques)->firstWhere('id', $bloqueActualId);
+        if (!$bloqueActual) {
+            return null;
+        }
+
+        $candidatos = collect($bloques)
+            ->where('dia_id', $bloqueActual['dia_id'])
+            ->where('id', '!=', $bloqueActualId)
+            ->values()
+            ->all();
+
+        foreach ($candidatos as $bloque) {
+            $docenteIdParaBloque = $docentePreferidoId;
+
+            if (!$docenteIdParaBloque) {
+                $docenteDisponible = $this->encontrarDocenteDisponible(
+                    $docentes,
+                    $bloque['id'],
+                    $periodoId,
+                    $aula
+                );
+                if (!$docenteDisponible) {
+                    continue;
+                }
+                $docenteIdParaBloque = $docenteDisponible['id'];
+            }
+
+            $validacion = $this->validarAsignacion(
+                $grupoId,
+                $aula['id'],
+                $bloque['id'],
+                $periodoId,
+                $docenteIdParaBloque,
+                null
+            );
+
+            if (!$validacion['valido']) {
+                continue;
+            }
+
+            return [
+                'bloque_id' => $bloque['id'],
+                'docente_id' => $docenteIdParaBloque,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -411,6 +685,7 @@ class HorarioService
         $aulaOcupada = HorarioAsignado::where('aula_id', $aulaId)
             ->where('bloque_horario_id', $bloqueId)
             ->where('periodo_academico_id', $periodoId)
+            ->where('activo', true)
             ->where('grupo_id', '!=', $grupoId);
         
         if ($horarioActualId) {
@@ -427,6 +702,7 @@ class HorarioService
         $grupoOcupado = HorarioAsignado::where('grupo_id', $grupoId)
             ->where('bloque_horario_id', $bloqueId)
             ->where('periodo_academico_id', $periodoId);
+        $grupoOcupado = $grupoOcupado->where('activo', true);
         
         if ($horarioActualId) {
             $grupoOcupado = $grupoOcupado->where('id', '!=', $horarioActualId);
@@ -436,24 +712,6 @@ class HorarioService
 
         if ($grupoOcupado) {
             $conflictos[] = 'El grupo ya tiene una clase asignada en este bloque horario';
-        }
-
-        // Verificar docente disponible
-        if ($docenteId) {
-            $docenteOcupado = HorarioAsignado::where('docente_id', $docenteId)
-                ->where('bloque_horario_id', $bloqueId)
-                ->where('periodo_academico_id', $periodoId)
-                ->where('grupo_id', '!=', $grupoId);
-            
-            if ($horarioActualId) {
-                $docenteOcupado = $docenteOcupado->where('id', '!=', $horarioActualId);
-            }
-            
-            $docenteOcupado = $docenteOcupado->first();
-
-            if ($docenteOcupado) {
-                $conflictos[] = 'El docente ya tiene una clase asignada en este bloque horario';
-            }
         }
 
         return [
@@ -493,5 +751,10 @@ class HorarioService
     public function esMetodoAsistenciaValido(string $metodo): bool
     {
         return array_key_exists($metodo, $this->metodosAsistencia);
+    }
+
+    private function obtenerDiasPorPatron(string $pattern): array
+    {
+        return $this->patterns[$pattern] ?? $this->patterns['LMV'];
     }
 }

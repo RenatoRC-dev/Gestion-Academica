@@ -37,6 +37,7 @@ function Layout() {
                         <p className="text-xs font-semibold text-blue-200 uppercase">Gestión Académica</p>
                     </div>
                     <NavItem to="/docentes" label="👨‍🏫 Docentes" isActive={isActive('/docentes')} />
+                    <NavItem to="/areas-academicas" label="🗂️ Áreas Académicas" isActive={isActive('/areas-academicas')} />
                     <NavItem to="/materias" label="📚 Materias" isActive={isActive('/materias')} />
                     <NavItem to="/aulas" label="🏫 Aulas" isActive={isActive('/aulas')} />
                     <NavItem to="/grupos" label="👥 Grupos" isActive={isActive('/grupos')} />
@@ -53,8 +54,7 @@ function Layout() {
                     <div className="px-6 py-3 mt-6">
                         <p className="text-xs font-semibold text-blue-200 uppercase">Asistencia</p>
                     </div>
-                    <NavItem to="/asistencia/generar-qr" label="🔐 Generar QR" isActive={isActive('/asistencia/generar-qr')} />
-                    <NavItem to="/asistencia/escanear-qr" label="📱 Escanear" isActive={isActive('/asistencia/escanear-qr')} />
+                    <NavItem to="/asistencias/qr" label="🔐 Generar y Escanear QR" isActive={isActive("/asistencias/qr")} />
                     <NavItem to="/asistencia/confirmar" label="✓ Confirmar" isActive={isActive('/asistencia/confirmar')} />
 
                     <div className="px-6 py-3 mt-6">

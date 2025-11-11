@@ -12,10 +12,14 @@ use Illuminate\Support\Facades\DB;
 
 class PeriodoController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         try {
-            $periodos = PeriodoAcademico::paginate(15);
+            $query = PeriodoAcademico::query();
+            if ($request->filled('activo')) {
+                $query->where('activo', $request->boolean('activo'));
+            }
+            $periodos = $query->paginate(15);
             return response()->json([
                 'success' => true,
                 'data' => $periodos,

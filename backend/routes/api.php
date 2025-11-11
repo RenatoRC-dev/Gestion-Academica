@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\PeriodoController;
 use App\Http\Controllers\Api\HorarioController;
 use App\Http\Controllers\Api\AsistenciaController;
 use App\Http\Controllers\Api\BloqueHorarioController;
+use App\Http\Controllers\Api\AreaAcademicaController;
 use App\Http\Controllers\Api\RolController;
 use App\Http\Controllers\Api\UsuarioController;
 use App\Http\Controllers\Api\UsuarioRolController;
@@ -40,6 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('administrativos', AdministrativoController::class);
     Route::apiResource('periodos', PeriodoController::class);
     Route::apiResource('bloques-horarios', BloqueHorarioController::class);
+    Route::apiResource('areas-academicas', AreaAcademicaController::class);
 
     // Catálogos para bloques horarios
     Route::get('/dias', [DiaController::class, 'index']);
@@ -55,7 +57,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Horarios - CU10, CU11, CU12
     Route::prefix('horarios')->group(function () {
         Route::get('/', [HorarioController::class, 'index']);
+        Route::get('/calendario-docente', [HorarioController::class, 'calendarioDocente']);
+        Route::get('/virtuales-docente', [HorarioController::class, 'virtualesDocente']);
         Route::get('/{horarioAsignado}', [HorarioController::class, 'show']);
+        Route::get('/{horarioAsignado}/calendario', [HorarioController::class, 'calendario']);
         Route::put('/{horarioAsignado}', [HorarioController::class, 'update']);
         Route::delete('/{horarioAsignado}', [HorarioController::class, 'destroy']);
         Route::post('/generar', [HorarioController::class, 'generar']);

@@ -12,16 +12,24 @@ function GenerarHorarioPage() {
   const [docentes, setDocentes] = useState([]);
   const [grupos, setGrupos] = useState([]);
   const [restricciones, setRestricciones] = useState([{ docente_id: '', pisos: '' }]);
-  const [preferencias, setPreferencias] = useState([{ docente_id: '', grupo_id: '' }]);
+  const [preferencias, setPreferencias] = useState([{ docente_id: '', grupo_id: '', pattern: '' }]);
   const [resultado, setResultado] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [conflictosDetalle, setConflictosDetalle] = useState([]);
+
+  const esPreferenciaCompleta = (pref) => Boolean(pref.docente_id && pref.grupo_id && pref.pattern);
+  const preferenciasCompletas = preferencias.filter(esPreferenciaCompleta);
+  const hayPreferenciaEnProceso = preferencias.some((pref) => pref.docente_id || pref.grupo_id);
+  const ultimaPreferenciaValida = preferencias.length === 0 || esPreferenciaCompleta(preferencias[preferencias.length - 1]);
+  const puedeGenerarPreferencias =
+    preferenciasCompletas.length > 0 || !hayPreferenciaEnProceso;
 
   useEffect(() => {
     const load = async () => {
       try {
-        const periodosRes = await api.get('/periodos');
+        const periodosRes = await api.get('/periodos', { params: { activo: true } });
         const p = periodosRes?.data?.data;
         const rows = Array.isArray(p?.data) ? p.data : Array.isArray(p) ? p : [];
         setPeriodos(rows);
@@ -45,11 +53,15 @@ function GenerarHorarioPage() {
         setRestricciones([...restricciones, { docente_id: '', pisos: '' }]);
   };
   const handleAddPreferencia = () => {
-    setPreferencias([...preferencias, { docente_id: '', grupo_id: '' }]);
+    if (!ultimaPreferenciaValida) {
+      return;
+    }
+    setPreferencias([...preferencias, { docente_id: '', grupo_id: '', pattern: '' }]);
   };
   const handlePreferenciaChange = (index, field, value) => {
+    const normalizedValue = field === 'pattern' ? value.toUpperCase() : value;
     setPreferencias((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
+      prev.map((item, idx) => (idx === index ? { ...item, [field]: normalizedValue } : item))
     );
   };
 
@@ -65,6 +77,7 @@ function GenerarHorarioPage() {
     setError(null);
     setSuccess(null);
     setResultado(null);
+    setConflictosDetalle([]);
 
     try {
       const payload = {
@@ -78,12 +91,11 @@ function GenerarHorarioPage() {
               .map((v) => parseInt(v.trim()))
               .filter((num) => !Number.isNaN(num)),
           })),
-        preferencias: preferencias
-          .filter((p) => p.docente_id && p.grupo_id)
-          .map((p) => ({
-            docente_id: parseInt(p.docente_id),
-            grupo_id: parseInt(p.grupo_id),
-          })),
+        preferencias: preferenciasCompletas.map((p) => ({
+          docente_id: parseInt(p.docente_id, 10),
+          grupo_id: parseInt(p.grupo_id, 10),
+          pattern: (p.pattern || 'LMV').toUpperCase(),
+        })),
       };
 
       const resp = await api.post('/horarios/generar', payload);
@@ -92,6 +104,8 @@ function GenerarHorarioPage() {
       setSuccess('Horarios generados exitosamente');
     } catch (err) {
       const parsed = parseApiError(err);
+      console.error('Conflictos al generar horario', parsed.conflictos);
+      setConflictosDetalle(Array.isArray(parsed.conflictos) ? parsed.conflictos : []);
       setError(parsed.message);
     } finally {
       setLoading(false);
@@ -103,6 +117,7 @@ function GenerarHorarioPage() {
     setResultado(null);
     setError(null);
     setSuccess(null);
+    setConflictosDetalle([]);
   };
 
   const resumen = useMemo(() => {
@@ -128,6 +143,22 @@ function GenerarHorarioPage() {
 
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
       {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} />}
+      {conflictosDetalle.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800 space-y-1">
+          <p className="font-semibold">Detalles del conflicto:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            {conflictosDetalle.map((item, index) => (
+              <li key={`conf-${index}`}>
+                {item.grupo_id ? `Grupo ${item.grupo_id}: ` : ''}
+                {item.razon || 'Conflicto sin detalle'}
+                {Array.isArray(item.bloques) && item.bloques.length > 0
+                  ? ` (Bloques: ${item.bloques.join(', ')})`
+                  : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow p-6 space-y-6">
         <div className="flex gap-3">
@@ -217,16 +248,17 @@ function GenerarHorarioPage() {
           <div className="space-y-3 border-t pt-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-gray-700">Preferencias (docente + grupo)</p>
-              <button
-                type="button"
-                className="text-blue-600 text-sm"
-                onClick={handleAddPreferencia}
-              >
-                + Agregar preferencia
-              </button>
+                <button
+                  type="button"
+                  className={`text-blue-600 text-sm ${!ultimaPreferenciaValida ? 'cursor-not-allowed opacity-50' : ''}`}
+                  onClick={handleAddPreferencia}
+                  disabled={!ultimaPreferenciaValida}
+                >
+                  + Agregar preferencia
+                </button>
             </div>
             {preferencias.map((pref, index) => (
-              <div key={`pref-${index}`} className="grid grid-cols-2 gap-4">
+              <div key={`pref-${index}`} className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs uppercase tracking-wide text-gray-500">Docente</label>
                   <select
@@ -255,6 +287,18 @@ function GenerarHorarioPage() {
                         {grupo.codigo_grupo} — {grupo.materia?.nombre}
                       </option>
                     ))}
+                    </select>
+                  </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-gray-500">Patrón</label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    value={pref.pattern}
+                    onChange={(e) => handlePreferenciaChange(index, 'pattern', e.target.value)}
+                  >
+                    <option value="">Seleccionar patrón</option>
+                    <option value="LMV">LMV (Lunes/Mié/Vier)</option>
+                    <option value="MJ">MJ (Martes/Jue)</option>
                   </select>
                 </div>
               </div>
@@ -271,7 +315,7 @@ function GenerarHorarioPage() {
               </button>
               <button
                 type="submit"
-                disabled={loading || !periodoId}
+                disabled={loading || !periodoId || !puedeGenerarPreferencias}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Generando...' : 'Generar Horarios'}

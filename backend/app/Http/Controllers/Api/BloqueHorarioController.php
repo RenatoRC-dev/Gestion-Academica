@@ -11,10 +11,14 @@ use Illuminate\Support\Facades\DB;
 
 class BloqueHorarioController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         try {
-            $bloques = BloqueHorario::with(['dia', 'horario'])->paginate(15);
+            $perPage = (int) $request->query('per_page', 15);
+            if ($perPage <= 0) {
+                $perPage = 15;
+            }
+            $bloques = BloqueHorario::with(['dia', 'horario'])->paginate($perPage);
             return response()->json([
                 'success' => true,
                 'data' => $bloques,
@@ -98,24 +102,53 @@ class BloqueHorarioController extends Controller
     {
         try {
             $validated = $request->validate([
-                'dia_id' => 'sometimes|integer|in:1,2,3,4,5,6,7',
-                'horario_id' => 'sometimes|exists:horario,id',
-                'activo' => 'nullable|boolean',
+                'dia_id' => 'sometimes|required|integer|in:1,2,3,4,5,6,7',
+                'horario_id' => 'sometimes|required|exists:horario,id',
+                'activo' => 'sometimes|required',
             ]);
 
-            DB::beginTransaction();
+            // Si solo se envía activo (toggle)
+            if (count($validated) === 1 && isset($validated['activo'])) {
+                $nuevoActivo = filter_var($validated['activo'], FILTER_VALIDATE_BOOLEAN);
 
-            $bloqueHorario->update($validated);
+                $bloqueHorario->activo = $nuevoActivo;
+                $bloqueHorario->save();
 
-            DB::commit();
+                return response()->json([
+                    'success' => true,
+                    'data' => $bloqueHorario->load(['dia', 'horario']),
+                    'message' => 'Bloque horario actualizado exitosamente'
+                ], 200);
+            }
+
+            // Verificar combinación día-horario única si se cambian
+            if (isset($validated['dia_id']) || isset($validated['horario_id'])) {
+                $diaId = $validated['dia_id'] ?? $bloqueHorario->dia_id;
+                $horarioId = $validated['horario_id'] ?? $bloqueHorario->horario_id;
+
+                $existente = BloqueHorario::where('dia_id', $diaId)
+                    ->where('horario_id', $horarioId)
+                    ->where('id', '!=', $bloqueHorario->id)
+                    ->first();
+
+                if ($existente) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Ya existe un bloque horario para este día y horario'
+                    ], 409);
+                }
+            }
+
+            // Actualizar con fill (no update) para evitar problemas con timestamps
+            $bloqueHorario->fill($validated);
+            $bloqueHorario->save();
 
             return response()->json([
                 'success' => true,
-                'data' => $bloqueHorario->fresh()->load(['dia', 'horario']),
+                'data' => $bloqueHorario->load(['dia', 'horario']),
                 'message' => 'Bloque horario actualizado exitosamente'
             ], 200);
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al actualizar bloque horario',
@@ -126,17 +159,22 @@ class BloqueHorarioController extends Controller
 
     public function destroy(BloqueHorario $bloqueHorario): JsonResponse
     {
-        try {
-            // ✅ CORRECCIÓN: Validar que NO esté en uso en horarios asignados
-            if (HorarioAsignado::where('bloque_horario_id', $bloqueHorario->id)->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No se puede eliminar un bloque horario que está en uso en horarios asignados'
-                ], 422);
-            }
+        // Validar que NO esté en uso en horarios asignados ANTES de la transacción
+        $enUso = HorarioAsignado::where('bloque_horario_id', $bloqueHorario->id)->exists();
 
-            DB::beginTransaction();
+        if ($enUso) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede eliminar un bloque horario que está en uso en horarios asignados'
+            ], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Eliminar directamente
             $bloqueHorario->delete();
+
             DB::commit();
 
             return response()->json([

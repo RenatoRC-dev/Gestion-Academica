@@ -137,21 +137,21 @@ export default function AppShell({ children }) {
             ],
         },
         {
-            title: 'ASISTENCIA',
-            items: [
-                { to: '/asistencias/generar-qr', icon: FaQrcode, label: 'Generar QR' },
-                { to: '/asistencias/escanear-qr', icon: FaQrcode, label: 'Escanear QR' },
-                { to: '/asistencias/confirmar-virtual', icon: FaListAlt, label: 'Confirmar asistencia' },
-            ],
-        },
+                title: 'ASISTENCIA',
+                items: [
+                    { to: '/asistencias/qr', icon: FaQrcode, label: 'Generar y Escanear QR' },
+                    { to: '/asistencias/confirmar-virtual', icon: FaListAlt, label: 'Confirmar asistencia' },
+                ],
+            },
     ];
 
     if (isAdmin) {
             navSections.push({
                 title: 'ADMINISTRACIÓN',
                 items: [
-                    { to: '/docentes', icon: FaChalkboardTeacher, label: 'Docentes' },
-                    { to: '/administrativos', icon: FaUserTie, label: 'Administrativos' },
+                { to: '/docentes', icon: FaChalkboardTeacher, label: 'Docentes' },
+                { to: '/areas-academicas', icon: FaListAlt, label: 'Áreas académicas' },
+                { to: '/administrativos', icon: FaUserTie, label: 'Administrativos' },
                     { to: '/materias', icon: FaListAlt, label: 'Materias' },
                     { to: '/aulas', icon: FaSchool, label: 'Aulas' },
                     { to: '/grupos', icon: FaUsers, label: 'Grupos' },

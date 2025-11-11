@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api.js';
+import horarioService from '../../services/horarioService.js';
 import Alert from '../../components/Alert.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
 
@@ -11,35 +12,52 @@ function ConfirmarAsistenciaPage() {
     const [success, setSuccess] = useState(null);
     const [horarios, setHorarios] = useState([]);
     const [horarioId, setHorarioId] = useState('');
+    const [calendario, setCalendario] = useState([]);
+    const [calendarioError, setCalendarioError] = useState(null);
+    const [calendarioLoading, setCalendarioLoading] = useState(false);
     const [asistenciaData, setAsistenciaData] = useState(null);
 
     useEffect(() => {
-        loadHorarios();
+        if (!horarioId) {
+            setCalendario([]);
+            setCalendarioError(null);
+            return;
+        }
+
+        let active = true;
+        setCalendarioLoading(true);
+        setCalendarioError(null);
+
+        const loadCalendario = async () => {
+            try {
+                const data = await horarioService.obtenerCalendario(horarioId);
+                if (!active) return;
+                setCalendario(data);
+            } catch (err) {
+                if (!active) return;
+                setCalendarioError(parseApiError(err).message);
+            } finally {
+                if (active) setCalendarioLoading(false);
+            }
+        };
+
+        loadCalendario();
+        return () => {
+            active = false;
+        };
+    }, [horarioId]);
+
+    useEffect(() => {
+        cargarHorariosVirtuales();
     }, []);
 
-    const loadHorarios = async () => {
+    const cargarHorariosVirtuales = async () => {
         try {
-            const response = await api.get('/horarios');
-            console.log('Respuesta de horarios:', response.data);
-
-            // Verificar la estructura de los datos
-            const data = response.data?.data?.data || response.data?.data || [];
-            console.log('Datos de horarios:', data);
-
-            // NOTA TEMPORAL: Usando modalidades disponibles para pruebas
-            console.log('Modalidades disponibles:',
-                Array.isArray(data)
-                    ? [...new Set(data.map(h => h.modalidad?.nombre))]
-                    : []
-            );
-
-            const horariosVirtuales = Array.isArray(data) ? data : [];
-
-            console.log('Horarios virtuales:', horariosVirtuales);
-            setHorarios(horariosVirtuales);
+            const data = await horarioService.obtenerVirtualesDocente();
+            setHorarios(Array.isArray(data) ? data : []);
         } catch (err) {
-            console.error('Error cargando horarios:', err);
-            setError(parseApiError(err));
+            console.error('Error cargando horarios virtuales:', err);
+            setError(parseApiError(err).message);
         }
     };
 
@@ -110,11 +128,57 @@ function ConfirmarAsistenciaPage() {
                     </div>
                     <div className="ml-3">
                         <p className="text-sm text-blue-700">
-                            Solo puedes confirmar asistencia para clases virtuales dentro de la ventana de tiempo permitida.
+                            Solo puedes confirmar asistencia para clases virtuales autorizadas dentro de la ventana de tiempo permitida.
                         </p>
                     </div>
                 </div>
             </div>
+
+            {calendarioError && (
+                <Alert type="warn" message={calendarioError} onClose={() => setCalendarioError(null)} />
+            )}
+
+            {calendario.length > 0 && (
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-gray-900">Calendario de clases</h2>
+                        {calendarioLoading && <span className="text-xs text-gray-500">Actualizando...</span>}
+                    </div>
+                    <div className="grid gap-2">
+                        {calendario.map((item) => {
+                            const hoyFecha = new Date().toISOString().split('T')[0];
+                            const isToday = item.fecha === hoyFecha;
+                            return (
+                                <div
+                                    key={`${item.fecha}-${item.hora_inicio}`}
+                                    className={`flex justify-between items-center rounded px-3 py-2 text-sm ${isToday ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}
+                                >
+                                    <div>
+                                        <div className="font-medium text-gray-900">{item.dia}: {item.fecha}</div>
+                                        <div className="text-gray-600">{item.hora_inicio} - {item.hora_fin}</div>
+                                    </div>
+                                    <div className="text-xs font-medium">
+                                        {item.asistencia_registrada
+                                            ? <span className="text-green-700">Registrada {item.estado && `(${item.estado})`}</span>
+                                            : <span className="text-gray-500">Pendiente</span>}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {!horarios.length && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                    <p className="text-sm font-semibold text-yellow-800">
+                        No hay clases virtuales autorizadas disponibles.
+                    </p>
+                    <p className="text-sm text-yellow-700">
+                        Contacta al administrador académico para habilitar la modalidad virtual de tus horarios.
+                    </p>
+                </div>
+            )}
 
             <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
                 <div>
@@ -135,7 +199,7 @@ function ConfirmarAsistenciaPage() {
                         ))}
                     </select>
                     <p className="text-sm text-gray-500 mt-1">
-                        Solo se muestran horarios con modalidad virtual
+                        Solo se muestran horarios virtuales autorizados
                     </p>
                 </div>
 

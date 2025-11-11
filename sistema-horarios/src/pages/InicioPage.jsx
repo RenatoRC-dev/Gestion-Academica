@@ -10,7 +10,7 @@ function InicioPage() {
                 <p className="text-gray-600">Seleccione una opción:</p>
                 <div className="space-x-2 mt-4">
                     <Link to="/horarios" className="btn-primary">Ver horarios</Link>
-                    <Link to="/asistencias/generar-qr" className="btn-secondary">Generar QR</Link>
+                    <Link to="/asistencias/qr" className="btn-secondary">Generar y Escanear QR</Link>
                     <Link to="/asistencias/escanear-qr" className="btn-secondary">Escanear QR</Link>
                 </div>
             </div>

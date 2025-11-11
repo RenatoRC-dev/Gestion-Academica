@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Carbon\CarbonInterface;
 
 class AsistenciaController extends Controller
 {
@@ -87,23 +88,31 @@ class AsistenciaController extends Controller
             $horario = HorarioAsignado::findOrFail($validated['horario_asignado_id']);
 
             // Verificar que sea una clase presencial
-            if ($horario->modalidad_id != 1) { // 1 = Presencial
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Solo se pueden generar QR para clases presenciales'
-                ], 400);
-            }
+        if ($horario->modalidad_id != 1) { // 1 = Presencial
+            return response()->json([
+                'success' => false,
+                'message' => 'Solo se pueden generar QR para clases presenciales'
+            ], 400);
+        }
 
-            // Validar bloque horario existente
-            $bloqueHorario = $horario->bloqueHorario;
-            if (!$bloqueHorario) {
-                return response()->json([
+        // Validar bloque horario existente
+        $bloqueHorario = $horario->bloqueHorario;
+        if (!$bloqueHorario) {
+            return response()->json([
                     'success' => false,
                     'message' => 'El bloque horario asociado no existe'
                 ], 400);
             }
 
-            DB::beginTransaction();
+        DB::beginTransaction();
+
+            if ($error = $this->validarCalendario($horario, now(), true)) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => $error
+                ], 400);
+            }
 
             // Hash único para el QR
             $codigo_hash = hash('sha256',
@@ -117,7 +126,7 @@ class AsistenciaController extends Controller
                 'horario_asignado_id'   => $validated['horario_asignado_id'],
                 'codigo_hash'           => $codigo_hash,
                 'fecha_hora_generacion' => now(),
-                'fecha_hora_expiracion' => now()->addMinutes(10), // CHG: 1 minuto para pruebas
+                'fecha_hora_expiracion' => now()->addMinutes(10),
                 'utilizado'             => false,
             ]);
 
@@ -179,8 +188,8 @@ class AsistenciaController extends Controller
             // Esto compara directamente en la base de datos sin conversiones de timezone
             $estaExpirado = DB::selectOne(
                 "SELECT CASE WHEN fecha_hora_expiracion < NOW() THEN 1 ELSE 0 END as expirado 
-                 FROM codigo_qr_asistencia 
-                 WHERE id = ?",
+                FROM codigo_qr_asistencia 
+                WHERE id = ?",
                 [$qrRecord->id]
             )->expirado;
 
@@ -219,6 +228,14 @@ class AsistenciaController extends Controller
             }
 
             $horarioAsignado = $qrRecord->horarioAsignado;
+
+            if ($error = $this->validarCalendario($horarioAsignado, now(), true)) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => $error
+                ], 400);
+            }
 
             // Usuario autenticado
             $usuarioActual = auth()->user();
@@ -327,6 +344,14 @@ class AsistenciaController extends Controller
                 ], 400);
             }
 
+            if (!$horario->virtual_autorizado) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta clase aún no ha sido autorizada para sesión virtual'
+                ], 400);
+            }
+
             $bloqueHorario = $horario->bloqueHorario;
             if (!$bloqueHorario || !$bloqueHorario->horario) {
                 DB::rollBack();
@@ -337,16 +362,12 @@ class AsistenciaController extends Controller
             }
 
             $ahora = now();
-            $horaInicioStr = (string) $bloqueHorario->horario->hora_inicio;
-            [$h, $m] = explode(':', $horaInicioStr);
-            $inicioBloque = now()->setHour((int)$h)->setMinute((int)$m)->setSecond(0);
-
-            if (abs($ahora->diffInMinutes($inicioBloque, false)) > 15) {
+            if ($error = $this->validarCalendario($horario, $ahora, true)) {
                 DB::rollBack();
                 return response()->json([
                     'success' => false,
-                    'message' => 'Solo puedes confirmar asistencia en la ventana de ±15 minutos de la hora de clase'
-                ], 422);
+                    'message' => $error
+                ], 400);
             }
 
             $usuarioActual = auth()->user();
@@ -422,5 +443,48 @@ class AsistenciaController extends Controller
                 'error'   => $e->getMessage()
             ], 500);
         }
+    }
+
+    private function validarCalendario(HorarioAsignado $horario, CarbonInterface $fecha, bool $validarVentana = false): ?string
+    {
+        $horario->loadMissing(['bloqueHorario.dia', 'bloqueHorario.horario', 'periodo']);
+        $bloqueHorario = $horario->bloqueHorario;
+        $periodo = $horario->periodo;
+
+        if (!$bloqueHorario || !$bloqueHorario->horario) {
+            return 'El bloque horario asociado no está correctamente configurado';
+        }
+        if (!$periodo || !$periodo->fecha_inicio || !$periodo->fecha_fin) {
+            return 'El periodo académico no está disponible para este horario';
+        }
+
+        $inicio = $periodo->fecha_inicio->startOfDay();
+        $fin = $periodo->fecha_fin->endOfDay();
+
+        if ($fecha->lessThan($inicio)) {
+            return 'La fecha actual está antes del inicio del periodo académico';
+        }
+        if ($fecha->greaterThan($fin)) {
+            return 'La fecha actual ya salió del periodo académico';
+        }
+
+        $diaEsperado = (int) $bloqueHorario->dia_id;
+        if ($fecha->dayOfWeekIso !== $diaEsperado) {
+            $nombre = $bloqueHorario->dia->nombre ?? 'el día correspondiente';
+            return "Hoy no hay clase programada para este horario ($nombre)";
+        }
+
+        if ($validarVentana) {
+            $horaInicioStr = (string) $bloqueHorario->horario->hora_inicio;
+            if (str_contains($horaInicioStr, ':')) {
+                [$h, $m] = explode(':', $horaInicioStr);
+                $inicioBloque = $fecha->copy()->setHour((int) $h)->setMinute((int) $m)->setSecond(0);
+                if (abs($fecha->diffInMinutes($inicioBloque, false)) > 15) {
+                    return 'Solo puedes registrar o generar en la ventana de ±15 minutos de inicio de clase';
+                }
+            }
+        }
+
+        return null;
     }
 }

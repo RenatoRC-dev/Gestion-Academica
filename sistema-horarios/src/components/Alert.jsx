@@ -19,7 +19,18 @@ export default function Alert({
     success: { wrap: 'bg-green-50 text-green-700', border: 'border-green-200' },
   };
   const colors = palette[tone] || palette.info;
-  const body = message ?? children;
+  const normalizeBody = (value) => {
+    if (React.isValidElement(value)) return value;
+    if (typeof value === 'object' && value !== null) {
+      if ('message' in value && typeof value.message === 'string') {
+        return value.message;
+      }
+      return JSON.stringify(value);
+    }
+    return value;
+  };
+
+  const body = normalizeBody(message ?? children);
 
   return (
     <div className={`rounded border p-3 text-sm flex justify-between gap-4 ${colors.wrap} ${colors.border} ${className}`}>

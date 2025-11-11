@@ -7,8 +7,24 @@ use Illuminate\Database\Eloquent\Model;
 class HorarioAsignado extends Model
 {
     protected $table = 'horario_asignado';
-    protected $fillable = ['grupo_id', 'docente_id', 'aula_id', 'bloque_horario_id', 'periodo_academico_id', 'modalidad_id', 'fecha_especifica', 'created_by', 'updated_by'];
-    protected $casts = ['fecha_especifica' => 'date'];
+    protected $fillable = [
+        'grupo_id',
+        'docente_id',
+        'aula_id',
+        'bloque_horario_id',
+        'periodo_academico_id',
+        'modalidad_id',
+        'virtual_autorizado',
+        'activo',
+        'fecha_especifica',
+        'created_by',
+        'updated_by'
+    ];
+    protected $casts = [
+        'fecha_especifica' => 'date',
+        'virtual_autorizado' => 'boolean',
+        'activo' => 'boolean'
+    ];
     public $timestamps = true;
 
     public function grupo()

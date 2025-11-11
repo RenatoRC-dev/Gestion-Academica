@@ -15,7 +15,7 @@ class DocenteController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $docentes = Docente::with('persona.usuario')->paginate(15);
+            $docentes = Docente::with(['persona.usuario', 'areas'])->paginate(15);
             return response()->json([
                 'success' => true,
                 'data' => $docentes,
@@ -40,6 +40,8 @@ class DocenteController extends Controller
                 'codigo_docente' => 'required|string|unique:docente,codigo_docente',
                 'telefono_contacto' => 'nullable|string|max:20',
                 'direccion' => 'nullable|string|max:500',
+                'areas' => 'sometimes|array',
+                'areas.*' => 'integer|exists:area_academica,id',
             ], [
                 'nombre_completo.required' => 'El nombre es requerido',
                 'email.required' => 'El email es requerido',
@@ -74,6 +76,10 @@ class DocenteController extends Controller
                 'codigo_docente' => $validated['codigo_docente'],
             ]);
 
+            if (!empty($validated['areas'])) {
+                $docente->areas()->sync($validated['areas']);
+            }
+
             $rol = \App\Models\Rol::where('nombre', 'docente')->first();
             if ($rol) {
                 $usuario->roles()->attach($rol);
@@ -102,7 +108,7 @@ class DocenteController extends Controller
         try {
             return response()->json([
                 'success' => true,
-                'data' => $docente->load('persona.usuario'),
+                'data' => $docente->load(['persona.usuario', 'areas']),
                 'message' => 'Docente obtenido exitosamente'
             ], 200);
         } catch (\Exception $e) {
@@ -121,9 +127,11 @@ class DocenteController extends Controller
                 'nombre_completo' => 'sometimes|string|max:255',
                 'email' => 'sometimes|email|unique:usuario,email,' . $docente->persona->usuario_id . ',id',
                 'ci' => 'sometimes|string|unique:persona,ci,' . $docente->persona_id . ',id',
-                'codigo_docente' => 'sometimes|string|unique:docente,codigo_docente,' . $docente->id . ',id',
+                'codigo_docente' => 'sometimes|string|unique:docente,codigo_docente,' . $docente->persona_id . ',persona_id',
                 'telefono_contacto' => 'nullable|string|max:20',
                 'direccion' => 'nullable|string|max:500',
+                'areas' => 'sometimes|array',
+                'areas.*' => 'integer|exists:area_academica,id',
             ]);
 
             DB::beginTransaction();
@@ -142,11 +150,15 @@ class DocenteController extends Controller
                 $usuario->update(array_intersect_key($validated, array_flip(['nombre_completo', 'email'])));
             }
 
+            if (array_key_exists('areas', $validated)) {
+                $docente->areas()->sync($validated['areas'] ?? []);
+            }
+
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'data' => $docente->fresh()->load('persona.usuario'),
+                'data' => $docente->fresh()->load(['persona.usuario','areas']),
                 'message' => 'Docente actualizado exitosamente'
             ], 200);
         } catch (\Exception $e) {
