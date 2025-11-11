@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\AsistenciaExport;
+use Illuminate\Support\Facades\Log;
 
 class ReporteAsistenciaController extends Controller
 {
@@ -111,9 +112,10 @@ class ReporteAsistenciaController extends Controller
 
             return $pdf->download($nombreArchivo);
         } catch (\Exception $e) {
+            Log::error('Error exportando PDF', ['exception' => $e, 'filtros' => $request->all()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Error al exportar PDF',
+                'message' => 'Error al exportar PDF: ' . $e->getMessage(),
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -143,9 +145,10 @@ class ReporteAsistenciaController extends Controller
 
             return Excel::download(new AsistenciaExport($registros, $datos['estadisticas']), $nombreArchivo);
         } catch (\Exception $e) {
+            Log::error('Error exportando Excel', ['exception' => $e, 'filtros' => $request->all()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Error al exportar Excel',
+                'message' => 'Error al exportar Excel: ' . $e->getMessage(),
                 'error' => $e->getMessage()
             ], 500);
         }

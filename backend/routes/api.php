@@ -40,18 +40,39 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // CRUD Entidades Maestras
     Route::get('/docentes/yo', [DocenteController::class, 'miPerfil']);
-    Route::apiResource('docentes', DocenteController::class);
-    Route::apiResource('materias', MateriaController::class);
-    Route::apiResource('aulas', AulaController::class);
-    Route::apiResource('grupos', GrupoController::class);
-    Route::apiResource('administrativos', AdministrativoController::class);
-    Route::apiResource('periodos', PeriodoController::class);
+    Route::apiResource('docentes', DocenteController::class)
+    ->parameters([
+        'docentes' => 'docente',
+    ]);
+    Route::apiResource('materias', MateriaController::class)
+    ->parameters([
+        'materias' => 'materia',
+    ]);
+    Route::apiResource('aulas', AulaController::class)
+    ->parameters([
+        'aulas' => 'aula',
+    ]);
+    Route::apiResource('grupos', GrupoController::class)
+    ->parameters([
+        'grupos' => 'grupo',
+    ]);
+    Route::apiResource('administrativos', AdministrativoController::class)
+    ->parameters([
+        'administrativos' => 'administrativo',
+    ]);
+    Route::apiResource('periodos', PeriodoController::class)
+    ->parameters([
+        'periodos' => 'periodo',
+    ]);
     Route::apiResource('bloques-horarios', BloqueHorarioController::class)
     ->parameters([
         'bloques-horarios' => 'bloqueHorario',
     ]);
 
-    Route::apiResource('areas-academicas', AreaAcademicaController::class);
+    Route::apiResource('areas-academicas', AreaAcademicaController::class)
+    ->parameters([
+        'areas-academicas' => 'areaAcademica',
+    ]);
     Route::apiResource('areas-administrativas', AreaAdministrativaController::class)
     ->parameters([
         'areas-administrativas' => 'areaAdministrativa',
@@ -63,8 +84,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/horarios-franja', [HorarioFranjaController::class, 'index']);
 
     // Roles y Usuarios
-    Route::apiResource('usuarios', UsuarioController::class);
-    Route::apiResource('roles', RolController::class);
+    Route::apiResource('usuarios', UsuarioController::class)
+    ->parameters([
+        'usuarios' => 'usuario',
+    ]);
+    Route::apiResource('roles', RolController::class)
+    ->parameters([
+        'roles' => 'rol',
+    ]);
     Route::get('/usuarios/{usuario}/roles', [UsuarioRolController::class, 'rolesDelUsuario']);
     Route::post('/usuarios/{usuario}/roles/asignar', [UsuarioRolController::class, 'asignarRol']);
     Route::post('/usuarios/{usuario}/roles/revocar', [UsuarioRolController::class, 'revocarRol']);

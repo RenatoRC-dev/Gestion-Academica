@@ -76,7 +76,6 @@ class EstadoAsistenciaController extends Controller
             $validated = $request->validate([
                 'nombre' => 'required|string|max:50|unique:estado_asistencia,nombre',
                 'descripcion' => 'nullable|string|max:255',
-                'color' => 'required|string|max:7|regex:/^#[0-9A-Fa-f]{6}$/',
                 'cuenta_como_falta' => 'nullable|boolean',
                 'orden' => 'nullable|integer|min:0',
                 'activo' => 'nullable|boolean',
@@ -130,7 +129,6 @@ class EstadoAsistenciaController extends Controller
             $validated = $request->validate([
                 'nombre' => 'sometimes|required|string|max:50|unique:estado_asistencia,nombre,' . $estadoAsistencia->id,
                 'descripcion' => 'nullable|string|max:255',
-                'color' => 'sometimes|required|string|max:7|regex:/^#[0-9A-Fa-f]{6}$/',
                 'cuenta_como_falta' => 'sometimes|required|boolean',
                 'orden' => 'sometimes|required|integer|min:0',
                 'activo' => 'sometimes|required',

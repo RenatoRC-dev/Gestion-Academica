@@ -68,6 +68,68 @@ body {
 .appshell-user { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .appshell-user-name { opacity: .85; }
 .appshell-user-role { font-size: 12px; color: #cbd5f5; }
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.toggle-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.toggle-switch .slider {
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: #dbeafe;
+  position: relative;
+  transition: background 0.2s ease;
+}
+.toggle-switch .slider::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+  transition: transform 0.2s ease;
+}
+.toggle-switch input:checked + .slider {
+  background: #22c55e;
+}
+.toggle-switch input:checked + .slider::after {
+  transform: translateX(16px);
+}
+.toggle-switch .switch-text {
+  min-width: 60px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #111827;
+}
+.activo-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #CBD5F5;
+  background-color: #dc2626;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.activo-badge.activo {
+  background-color: #059669;
+  border-color: #059669;
+}
+.activo-badge:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 .appshell-logout {
   display: inline-flex;
   align-items: center;

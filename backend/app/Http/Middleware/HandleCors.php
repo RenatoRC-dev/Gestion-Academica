@@ -18,15 +18,22 @@ class HandleCors
 
         $origin = $request->header('Origin');
 
+        $response = $next($request);
+
         if (in_array($origin, $allowedOrigins)) {
-            return $next($request)
-                ->header('Access-Control-Allow-Origin', $origin)
-                ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD')
-                ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-                ->header('Access-Control-Allow-Credentials', 'true')
-                ->header('Access-Control-Max-Age', '86400');
+            $responseHeaders = [
+                'Access-Control-Allow-Origin' => $origin,
+                'Access-Control-Allow-Methods' => 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD',
+                'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With',
+                'Access-Control-Allow-Credentials' => 'true',
+                'Access-Control-Max-Age' => '86400',
+            ];
+
+            foreach ($responseHeaders as $key => $value) {
+                $response->headers->set($key, $value);
+            }
         }
 
-        return $next($request);
+        return $response;
     }
 }

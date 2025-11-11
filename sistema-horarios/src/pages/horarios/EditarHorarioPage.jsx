@@ -50,7 +50,7 @@ function EditarHorarioPage() {
                 api.get('/docentes'),
                 api.get('/aulas'),
                 api.get('/grupos'),
-                api.get('/bloques-horarios'),
+                api.get('/bloques-horarios', { params: { per_page: 1000 } }),
             ]);
 
             const horario = horarioRes.data?.data || horarioRes.data;

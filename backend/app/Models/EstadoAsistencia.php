@@ -10,7 +10,6 @@ class EstadoAsistencia extends Model
     protected $fillable = [
         'nombre',
         'descripcion',
-        'color',
         'cuenta_como_falta',
         'orden',
         'activo',

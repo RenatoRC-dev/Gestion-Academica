@@ -23,6 +23,7 @@ import {
   clearAulasSaveError,
   clearAulasDeleteError,
 } from '../../store/slices/aulasSlice.js';
+import ActivoBadge from '../../components/ActivoBadge.jsx';
 
 const emptyForm = {
   nombre: '',
@@ -108,22 +109,7 @@ export default function AulasPage() {
       accessor: 'activo',
       align: 'center',
       render: (row) => (
-        <button
-          type="button"
-          onClick={() => toggleActivo(row)}
-          aria-pressed={row.activo}
-          style={{
-            padding: '0.25rem 0.75rem',
-            borderRadius: '999px',
-            border: '1px solid #CBD5F5',
-            backgroundColor: row.activo ? '#059669' : '#DC2626',
-            color: '#fff',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          {row.activo ? 'Sí' : 'No'}
-        </button>
+        <ActivoBadge activo={row.activo} onToggle={() => toggleActivo(row)} />
       ),
     },
     {

@@ -193,7 +193,11 @@ export default function HistorialAsistenciaPage() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      setResumenError('No se pudo exportar el reporte');
+      const message =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        'No se pudo exportar el reporte';
+      setResumenError(message);
     } finally {
       setExporting(false);
     }

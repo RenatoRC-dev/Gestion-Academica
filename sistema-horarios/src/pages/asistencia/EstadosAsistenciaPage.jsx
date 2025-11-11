@@ -5,11 +5,11 @@ import PageHeader from '../../components/PageHeader.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import Alert from '../../components/Alert.jsx';
 import estadoAsistenciaService from '../../services/estadoAsistenciaService.js';
+import ActivoBadge from '../../components/ActivoBadge.jsx';
 
 const emptyForm = {
   nombre: '',
   descripcion: '',
-  color: '#10B981',
   cuenta_como_falta: false,
   orden: 0,
   activo: true,
@@ -80,23 +80,6 @@ export default function EstadosAsistenciaPage() {
       render: (row) => row.descripcion || '-',
     },
     {
-      header: 'Color',
-      render: (row) => (
-        <div className="flex items-center gap-2">
-          <div
-            style={{
-              width: '20px',
-              height: '20px',
-              borderRadius: '4px',
-              backgroundColor: row.color || '#10B981',
-              border: '1px solid #D1D5DB',
-            }}
-          />
-          <span className="text-sm text-gray-600">{row.color || '#10B981'}</span>
-        </div>
-      ),
-    },
-    {
       header: 'Cuenta como falta',
       render: (row) => (
         <span
@@ -118,25 +101,10 @@ export default function EstadosAsistenciaPage() {
     },
     {
       header: 'Estado',
-      render: (row) => (
-        <button
-          type="button"
-          onClick={() => toggleActivo(row)}
-          aria-pressed={row.activo}
-          style={{
-            padding: '0.25rem 0.75rem',
-            borderRadius: '999px',
-            border: '1px solid #CBD5F5',
-            backgroundColor: row.activo ? '#059669' : '#DC2626',
-            color: '#fff',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          {row.activo ? 'Activo' : 'Desactivado'}
-        </button>
-      ),
       align: 'center',
+      render: (row) => (
+        <ActivoBadge activo={row.activo} onToggle={() => toggleActivo(row)} />
+      ),
     },
   ];
 
@@ -151,7 +119,6 @@ export default function EstadosAsistenciaPage() {
     setForm({
       nombre: estado.nombre || '',
       descripcion: estado.descripcion || '',
-      color: estado.color || '#10B981',
       cuenta_como_falta: estado.cuenta_como_falta !== undefined ? estado.cuenta_como_falta : false,
       orden: estado.orden ?? 0,
       activo: estado.activo !== undefined ? estado.activo : true,
@@ -297,29 +264,6 @@ export default function EstadosAsistenciaPage() {
                   placeholder="Descripción breve"
                   maxLength={255}
                 />
-              </div>
-              <div className="form-field">
-                <label>
-                  Color <span className="text-red-500">*</span>
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    className="h-10 w-20 border border-gray-300 rounded cursor-pointer"
-                    value={form.color}
-                    onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))}
-                    required
-                  />
-                  <input
-                    type="text"
-                    className="input flex-1"
-                    value={form.color}
-                    onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))}
-                    placeholder="#10B981"
-                    pattern="^#[0-9A-Fa-f]{6}$"
-                    required
-                  />
-                </div>
               </div>
               <div className="form-field">
                 <label>Orden</label>

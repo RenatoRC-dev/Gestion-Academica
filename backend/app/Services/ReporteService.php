@@ -125,13 +125,13 @@ class ReporteService
         $registros = [];
 
         foreach ($datos['asistencias'] as $asistencia) {
+            $docenteNombre = $asistencia->docente?->persona?->nombre_completo;
+            $grupoCodigo = $asistencia->horarioAsignado?->grupo?->codigo_grupo;
             $registros[] = [
                 'Fecha' => $asistencia->fecha_hora_registro?->format('d/m/Y H:i'),
-                'Docente' => $asistencia->docente?->persona
-                    ? $asistencia->docente->persona->nombre . ' ' . $asistencia->docente->persona->apellido_paterno
-                    : 'N/A',
+                'Docente' => $docenteNombre ?? 'N/A',
                 'Materia' => $asistencia->horarioAsignado?->grupo?->materia?->nombre ?? 'N/A',
-                'Grupo' => $asistencia->horarioAsignado?->grupo?->nombre ?? 'N/A',
+                'Grupo' => $grupoCodigo ?? 'N/A',
                 'Día' => $asistencia->horarioAsignado?->bloqueHorario?->dia?->nombre ?? 'N/A',
                 'Horario' => ($asistencia->horarioAsignado?->bloqueHorario?->horario)
                     ? $asistencia->horarioAsignado->bloqueHorario->horario->hora_inicio . ' - ' .

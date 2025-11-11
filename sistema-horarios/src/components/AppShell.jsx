@@ -9,6 +9,7 @@ import {
     FaChalkboardTeacher,
     FaClipboardList,
     FaFileAlt,
+    FaLandmark,
     FaListAlt,
     FaQrcode,
     FaRegCalendarCheck,
@@ -191,6 +192,7 @@ export default function AppShell({ children }) {
             items: [
                 { to: '/docentes', icon: FaChalkboardTeacher, label: 'Docentes' },
                 { to: '/areas-academicas', icon: FaBook, label: 'Áreas académicas' },
+                { to: '/areas-administrativas', icon: FaLandmark, label: 'Áreas administrativas' },
                 { to: '/administrativos', icon: FaUserTie, label: 'Administrativos' },
                 { to: '/materias', icon: FaBook, label: 'Materias' },
                 { to: '/aulas', icon: FaBuilding, label: 'Aulas' },
