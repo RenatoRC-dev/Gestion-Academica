@@ -17,18 +17,69 @@ use Carbon\CarbonInterface;
 class AsistenciaController extends Controller
 {
     /**
-     * CU11 - Listar Asistencias
+     * CU11, CU16, CU17, CU18 - Listar Asistencias con filtros avanzados
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         try {
-            $asistencias = Asistencia::with([
+            $perPage = (int) $request->query('per_page', 15);
+            if ($perPage <= 0) {
+                $perPage = 15;
+            }
+
+            $query = Asistencia::with([
                 'horarioAsignado.grupo.materia',
+                'horarioAsignado.bloqueHorario.dia',
+                'horarioAsignado.bloqueHorario.horario',
+                'horarioAsignado.periodo',
                 'docente.persona',
                 'estado',
                 'metodoRegistro',
                 'codigoQR'
-            ])->paginate(15);
+            ]);
+
+            // Filtros
+            if ($request->filled('docente_id')) {
+                $query->where('docente_id', $request->query('docente_id'));
+            }
+
+            if ($request->filled('estado_id')) {
+                $query->where('estado_id', $request->query('estado_id'));
+            }
+
+            if ($request->filled('metodo_registro_id')) {
+                $query->where('metodo_registro_id', $request->query('metodo_registro_id'));
+            }
+
+            if ($request->filled('fecha_inicio') && $request->filled('fecha_fin')) {
+                $query->whereBetween('fecha_hora_registro', [
+                    $request->query('fecha_inicio') . ' 00:00:00',
+                    $request->query('fecha_fin') . ' 23:59:59'
+                ]);
+            }
+
+            // Filtro por periodo a través de horario_asignado
+            if ($request->filled('periodo_id')) {
+                $query->whereHas('horarioAsignado', function ($q) use ($request) {
+                    $q->where('periodo_academico_id', $request->query('periodo_id'));
+                });
+            }
+
+            // Filtro por grupo
+            if ($request->filled('grupo_id')) {
+                $query->whereHas('horarioAsignado', function ($q) use ($request) {
+                    $q->where('grupo_id', $request->query('grupo_id'));
+                });
+            }
+
+            // Filtro por materia
+            if ($request->filled('materia_id')) {
+                $query->whereHas('horarioAsignado.grupo', function ($q) use ($request) {
+                    $q->where('materia_id', $request->query('materia_id'));
+                });
+            }
+
+            $asistencias = $query->orderBy('fecha_hora_registro', 'desc')->paginate($perPage);
 
             return response()->json([
                 'success' => true,
@@ -67,6 +118,164 @@ class AsistenciaController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener asistencia',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * CU18 - Registrar asistencia manualmente (Admin)
+     */
+    public function store(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'horario_asignado_id' => 'required|exists:horario_asignado,id',
+                'docente_id' => 'required|exists:docente,persona_id',
+                'estado_id' => 'required|exists:estado_asistencia,id',
+                'fecha_hora_registro' => 'required|date',
+                'observaciones' => 'nullable|string|max:500',
+            ], [
+                'horario_asignado_id.required' => 'El horario asignado es requerido',
+                'horario_asignado_id.exists' => 'El horario asignado no existe',
+                'docente_id.required' => 'El docente es requerido',
+                'docente_id.exists' => 'El docente no existe',
+                'estado_id.required' => 'El estado es requerido',
+                'estado_id.exists' => 'El estado no existe',
+                'fecha_hora_registro.required' => 'La fecha y hora son requeridas',
+                'fecha_hora_registro.date' => 'La fecha y hora deben ser válidas',
+            ]);
+
+            DB::beginTransaction();
+
+            // Validar que no exista duplicado
+            $existe = Asistencia::where('horario_asignado_id', $validated['horario_asignado_id'])
+                ->where('docente_id', $validated['docente_id'])
+                ->whereDate('fecha_hora_registro', substr($validated['fecha_hora_registro'], 0, 10))
+                ->exists();
+
+            if ($existe) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya existe un registro de asistencia para este docente en esta clase y fecha'
+                ], 422);
+            }
+
+            $usuarioActual = auth()->user();
+
+            // Crear asistencia manual
+            $asistencia = Asistencia::create([
+                'horario_asignado_id' => $validated['horario_asignado_id'],
+                'docente_id' => $validated['docente_id'],
+                'fecha_hora_registro' => $validated['fecha_hora_registro'],
+                'estado_id' => $validated['estado_id'],
+                'metodo_registro_id' => 3, // Registro Manual Admin
+                'observaciones' => $validated['observaciones'] ?? null,
+                'registrado_por_id' => $usuarioActual->id,
+            ]);
+
+            $asistencia->load([
+                'horarioAsignado.grupo.materia',
+                'docente.persona',
+                'estado',
+                'metodoRegistro'
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'data' => $asistencia,
+                'message' => 'Asistencia registrada exitosamente'
+            ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al registrar asistencia',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * CU18 - Modificar asistencia existente (Admin)
+     */
+    public function update(Request $request, Asistencia $asistencia): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'estado_id' => 'sometimes|required|exists:estado_asistencia,id',
+                'observaciones' => 'nullable|string|max:500',
+            ], [
+                'estado_id.exists' => 'El estado no existe',
+            ]);
+
+            DB::beginTransaction();
+
+            $asistencia->fill($validated);
+            $asistencia->save();
+
+            $asistencia->load([
+                'horarioAsignado.grupo.materia',
+                'docente.persona',
+                'estado',
+                'metodoRegistro'
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'data' => $asistencia,
+                'message' => 'Asistencia actualizada exitosamente'
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar asistencia',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * CU18 - Eliminar asistencia (Admin)
+     */
+    public function destroy(Asistencia $asistencia): JsonResponse
+    {
+        DB::beginTransaction();
+
+        try {
+            $asistencia->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Asistencia eliminada exitosamente'
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar asistencia',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -441,6 +650,180 @@ class AsistenciaController extends Controller
                 'success' => false,
                 'message' => 'Error al confirmar asistencia virtual',
                 'error'   => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * CU16 - Historial de asistencia propio (Docente)
+     */
+    public function historialPropio(Request $request): JsonResponse
+    {
+        try {
+            $usuarioActual = auth()->user();
+
+            // Obtener perfil docente
+            $docente = Docente::whereHas('persona.usuario', function ($q) use ($usuarioActual) {
+                $q->where('usuario_id', $usuarioActual->id);
+            })->first();
+
+            if (!$docente) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró perfil de docente para este usuario'
+                ], 403);
+            }
+
+            $perPage = (int) $request->query('per_page', 15);
+            if ($perPage <= 0) {
+                $perPage = 15;
+            }
+
+            $query = Asistencia::with([
+                'horarioAsignado.grupo.materia',
+                'horarioAsignado.bloqueHorario.dia',
+                'horarioAsignado.bloqueHorario.horario',
+                'horarioAsignado.periodo',
+                'estado',
+                'metodoRegistro'
+            ])->where('docente_id', $docente->persona_id);
+
+            // Filtros opcionales
+            if ($request->has('fecha_inicio') && $request->has('fecha_fin')) {
+                $query->whereBetween('fecha_hora_registro', [
+                    $request->query('fecha_inicio') . ' 00:00:00',
+                    $request->query('fecha_fin') . ' 23:59:59'
+                ]);
+            }
+
+            if ($request->has('materia_id')) {
+                $query->whereHas('horarioAsignado.grupo', function ($q) use ($request) {
+                    $q->where('materia_id', $request->query('materia_id'));
+                });
+            }
+
+            if ($request->has('estado_id')) {
+                $query->where('estado_id', $request->query('estado_id'));
+            }
+
+            $asistencias = $query->orderBy('fecha_hora_registro', 'desc')->paginate($perPage);
+
+            return response()->json([
+                'success' => true,
+                'data' => $asistencias,
+                'message' => 'Historial obtenido exitosamente'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener historial',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * CU17 - Historial general de asistencias (Admin/Autoridad)
+     */
+    public function historialGeneral(Request $request): JsonResponse
+    {
+        try {
+            // Usar el método index existente que ya tiene todos los filtros
+            return $this->index($request);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener historial general',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * CU16, CU17 - Estadísticas de asistencia
+     */
+    public function estadisticas(Request $request): JsonResponse
+    {
+        try {
+            $usuarioActual = auth()->user();
+            $esDocente = $usuarioActual->roles()->where('nombre', 'docente')->exists();
+
+            $query = Asistencia::query();
+
+            // Si es docente, solo sus asistencias
+            if ($esDocente) {
+                $docente = Docente::whereHas('persona.usuario', function ($q) use ($usuarioActual) {
+                    $q->where('usuario_id', $usuarioActual->id);
+                })->first();
+
+                if (!$docente) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No se encontró perfil de docente'
+                    ], 403);
+                }
+
+                $query->where('docente_id', $docente->persona_id);
+            }
+
+            // Filtros opcionales
+            if ($request->has('docente_id')) {
+                $query->where('docente_id', $request->query('docente_id'));
+            }
+
+            if ($request->has('fecha_inicio') && $request->has('fecha_fin')) {
+                $query->whereBetween('fecha_hora_registro', [
+                    $request->query('fecha_inicio') . ' 00:00:00',
+                    $request->query('fecha_fin') . ' 23:59:59'
+                ]);
+            }
+
+            if ($request->has('periodo_id')) {
+                $query->whereHas('horarioAsignado', function ($q) use ($request) {
+                    $q->where('periodo_academico_id', $request->query('periodo_id'));
+                });
+            }
+
+            // Calcular estadísticas
+            $totalClases = $query->count();
+            $presentes = (clone $query)->whereHas('estado', function ($q) {
+                $q->where('nombre', 'Presente');
+            })->count();
+
+            $faltas = (clone $query)->whereHas('estado', function ($q) {
+                $q->where('cuenta_como_falta', true);
+            })->count();
+
+            $justificadas = (clone $query)->whereHas('estado', function ($q) {
+                $q->where('nombre', 'LIKE', '%Justificada%');
+            })->count();
+
+            $porcentajeAsistencia = $totalClases > 0 ? round(($presentes / $totalClases) * 100, 2) : 0;
+
+            // Por método de registro
+            $porMetodo = DB::table('asistencia')
+                ->join('metodo_registro_asistencia', 'asistencia.metodo_registro_id', '=', 'metodo_registro_asistencia.id')
+                ->select('metodo_registro_asistencia.nombre', DB::raw('COUNT(*) as total'))
+                ->groupBy('metodo_registro_asistencia.id', 'metodo_registro_asistencia.nombre')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total_clases' => $totalClases,
+                    'presentes' => $presentes,
+                    'faltas' => $faltas,
+                    'justificadas' => $justificadas,
+                    'porcentaje_asistencia' => $porcentajeAsistencia,
+                    'por_metodo' => $porMetodo,
+                ],
+                'message' => 'Estadísticas obtenidas exitosamente'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener estadísticas',
+                'error' => $e->getMessage()
             ], 500);
         }
     }

@@ -1,20 +1,26 @@
 import api from './api.js';
 
 const asistenciaService = {
-    listarAsistencias: async ({ page = 1, per_page = 15 } = {}) => {
+    getAll: async (params = {}) => {
+        const { data } = await api.get('/asistencias', { params });
+        return data;
+    },
+
+    listarAsistencias: async ({ page = 1, per_page = 15, ...filters } = {}) => {
         try {
             const response = await api.get('/asistencias', {
-                params: { page, per_page }
+                params: { page, per_page, ...filters }
             });
 
             if (response.data.success) {
+                const payload = response.data.data;
                 return {
-                    rows: response.data.data || [],
-                    meta: response.data.meta || {
-                        current_page: 1,
-                        last_page: 1,
-                        total: 0,
-                        per_page: 15
+                    rows: payload?.data || payload || [],
+                    meta: {
+                        current_page: payload?.current_page ?? 1,
+                        last_page: payload?.last_page ?? 1,
+                        total: payload?.total ?? 0,
+                        per_page: payload?.per_page ?? 15
                     }
                 };
             } else {
@@ -42,6 +48,11 @@ const asistenciaService = {
         }
     },
 
+    getById: async (id) => {
+        const { data } = await api.get(`/asistencias/${id}`);
+        return data;
+    },
+
     obtenerAsistencia: async (id) => {
         try {
             const response = await api.get(`/asistencias/${id}`);
@@ -50,6 +61,20 @@ const asistenciaService = {
             console.error('Error obteniendo asistencia:', error);
             return null;
         }
+    },
+
+    create: async (payload) => {
+        const { data } = await api.post('/asistencias', payload);
+        return data;
+    },
+
+    update: async (id, payload) => {
+        const { data } = await api.put(`/asistencias/${id}`, payload);
+        return data;
+    },
+
+    remove: async (id) => {
+        await api.delete(`/asistencias/${id}`);
     },
 
     verificarSesionQR: async () => {

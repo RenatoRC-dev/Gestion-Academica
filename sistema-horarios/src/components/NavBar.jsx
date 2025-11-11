@@ -32,13 +32,14 @@ export default function NavBar() {
         }
     };
 
-    const roles = Array.isArray(user?.roles)
-        ? user.roles
-            .map(r => typeof r === 'string' ? r : r?.nombre)
-            .filter(Boolean)
-            .map(s => s.toUpperCase())
-        : [];
-    const isAdmin = roles.map(s => s.toLowerCase()).includes(ROLES.ADMIN);
+    const rawRoles = Array.isArray(user?.roles) ? user.roles : [];
+    const normalizedRoles = rawRoles
+        .map(r => (typeof r === 'string' ? r : r?.nombre))
+        .filter(Boolean)
+        .map((value) => value.toLowerCase());
+    const displayRoles = normalizedRoles.map((value) => value.toUpperCase());
+    const isAdmin = normalizedRoles.includes(ROLES.ADMIN);
+    const isDocente = normalizedRoles.includes(ROLES.DOCENTE);
 
     return (
         <header className="bg-gray-900 sticky top-0 z-40 shadow">
@@ -50,6 +51,7 @@ export default function NavBar() {
                         <Item to="/horarios">Horarios</Item>
                         <Item to="/asistencias/qr">Generar y Escanear QR</Item>
                         <Item to="/asistencias/confirmar-virtual">Confirmar Virtual</Item>
+                        {isDocente && <Item to="/asistencias/mihistorial">Mi historial</Item>}
 
                         {/* Rutas de administración */}
                         {isAdmin && (
@@ -60,11 +62,16 @@ export default function NavBar() {
                                 <Item to="/periodos">Períodos</Item>
                                 <Item to="/docentes">Docentes</Item>
                                 <Item to="/areas-academicas">Áreas Académicas</Item>
+                                <Item to="/areas-administrativas">Áreas Administrativas</Item>
                                 <Item to="/aulas">Aulas</Item>
                                 <Item to="/materias">Materias</Item>
                                 <Item to="/grupos">Grupos</Item>
+                                <Item to="/bloques">Bloques Horarios</Item>
                                 <Item to="/horarios/generar">Generar Horarios</Item>
-                                <Item to="/asistencias/qr">Generar QR</Item>
+                                <Item to="/asistencias/registrar">Registrar Asistencia</Item>
+                                <Item to="/asistencias/estados">Estados Asistencia</Item>
+                                <Item to="/asistencias/metodos">Métodos Registro</Item>
+                                <Item to="/asistencias/historial">Historial Asistencias</Item>
                             </>
                         )}
                     </nav>
@@ -73,7 +80,9 @@ export default function NavBar() {
                 <div className="flex items-center gap-3">
                     <div className="hidden sm:block text-white/80 text-sm">
                         {user?.nombre_completo || user?.email}
-                        {roles.length > 0 && <span className="ml-2 text-white/60">({roles.join(', ')})</span>}
+                        {displayRoles.length > 0 && (
+                            <span className="ml-2 text-white/60">({displayRoles.join(', ')})</span>
+                        )}
                     </div>
                     <button
                         onClick={onLogout}

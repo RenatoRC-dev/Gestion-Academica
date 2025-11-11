@@ -59,6 +59,11 @@ const docenteService = {
         return response.data;
     },
 
+    getCurrent: async () => {
+        const response = await api.get('/docentes/yo');
+        return response.data;
+    },
+
     create: async (payload) => {
         const response = await api.post('/docentes', payload);
         return response.data;

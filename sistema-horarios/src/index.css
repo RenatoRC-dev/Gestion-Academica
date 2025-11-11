@@ -67,6 +67,7 @@ body {
 .appshell-spacer { flex: 1; }
 .appshell-user { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .appshell-user-name { opacity: .85; }
+.appshell-user-role { font-size: 12px; color: #cbd5f5; }
 .appshell-logout {
   display: inline-flex;
   align-items: center;

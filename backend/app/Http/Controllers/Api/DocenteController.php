@@ -30,6 +30,45 @@ class DocenteController extends Controller
         }
     }
 
+    /**
+     * Obtener perfil del docente autenticado
+     */
+    public function miPerfil(): JsonResponse
+    {
+        $usuario = auth()->user();
+        if (!$usuario) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No hay usuario autenticado'
+            ], 401);
+        }
+
+        $persona = $usuario->persona;
+        if (!$persona) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se encontró el perfil académico del usuario'
+            ], 404);
+        }
+
+        $docente = Docente::with(['persona.usuario', 'areas'])
+            ->where('persona_id', $persona->id)
+            ->first();
+
+        if (!$docente) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se encontró un docente vinculado a este usuario'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $docente,
+            'message' => 'Perfil de docente cargado'
+        ], 200);
+    }
+
     public function store(Request $request): JsonResponse
     {
         try {

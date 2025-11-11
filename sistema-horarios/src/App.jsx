@@ -23,6 +23,7 @@ import GruposPage from './pages/academica/GruposPage.jsx';
 import BloquesPage from './pages/academica/BloquesPage.jsx';
 import AdministrativosPage from './pages/academica/AdministrativosPage.jsx';
 import AreasAcademicasPage from './pages/academica/AreasAcademicasPage.jsx';
+import AreasAdministrativasPage from './pages/administrativas/AreasAdministrativasPage.jsx';
 
 // Páginas de Horarios
 import VisualizarHorarioPage from './pages/horarios/VisualizarHorarioPage.jsx';
@@ -31,7 +32,12 @@ import GenerarHorarioPage from './pages/horarios/GenerarHorarioPage.jsx';
 
 // Páginas de Asistencia
 import GenerarEscanearQRPage from './pages/asistencia/GenerarEscanearQRPage.jsx';
-  import ConfirmarAsistenciaPage from './pages/asistencia/ConfirmarAsistenciaPage.jsx';
+import ConfirmarAsistenciaPage from './pages/asistencia/ConfirmarAsistenciaPage.jsx';
+import EstadosAsistenciaPage from './pages/asistencia/EstadosAsistenciaPage.jsx';
+import MetodosRegistroPage from './pages/asistencia/MetodosRegistroPage.jsx';
+import RegistrarAsistenciaPage from './pages/asistencia/RegistrarAsistenciaPage.jsx';
+import HistorialAsistenciaPage from './pages/asistencia/HistorialAsistenciaPage.jsx';
+import MiHistorialAsistenciaPage from './pages/asistencia/MiHistorialAsistenciaPage.jsx';
 
 function Splash() {
     return (
@@ -86,6 +92,10 @@ function AuthContent() {
                         <Route path="/asistencias/confirmar-virtual" element={<ConfirmarAsistenciaPage />} />
                     </Route>
 
+                    <Route element={<ProtectedRoute requireRoles={[ROLES.DOCENTE]} />}>
+                        <Route path="/asistencias/mihistorial" element={<MiHistorialAsistenciaPage />} />
+                    </Route>
+
                     {/* Rutas de Administración */}
                     <Route element={<ProtectedRoute requireRoles={[ROLES.ADMIN]} />}>
                         <Route path="/usuarios" element={<UsuariosPage />} />
@@ -102,6 +112,13 @@ function AuthContent() {
                         <Route path="/administrativos" element={<AdministrativosPage />} />
                         <Route path="/horarios/generar" element={<GenerarHorarioPage />} />
                         <Route path="/areas-academicas" element={<AreasAcademicasPage />} />
+                        <Route path="/areas-administrativas" element={<AreasAdministrativasPage />} />
+                        <Route path="/asistencias/historial" element={<HistorialAsistenciaPage />} />
+
+                        {/* Rutas de Asistencia (Admin) */}
+                        <Route path="/asistencias/registrar" element={<RegistrarAsistenciaPage />} />
+                        <Route path="/asistencias/estados" element={<EstadosAsistenciaPage />} />
+                        <Route path="/asistencias/metodos" element={<MetodosRegistroPage />} />
                     </Route>
 
                     {/* 404 */}

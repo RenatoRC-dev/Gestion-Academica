@@ -18,6 +18,11 @@ use App\Http\Controllers\Api\UsuarioRolController;
 use App\Http\Controllers\Api\BitacoraController;
 use App\Http\Controllers\Api\DiaController;
 use App\Http\Controllers\Api\HorarioFranjaController;
+use App\Http\Controllers\Api\EstadoAsistenciaController;
+use App\Http\Controllers\Api\MetodoRegistroAsistenciaController;
+use App\Http\Controllers\Api\ReporteAsistenciaController;
+use App\Http\Controllers\Api\ImportacionController;
+use App\Http\Controllers\Api\AreaAdministrativaController;
 
 // Rutas públicas
 // Corrección: Rate limiting contra fuerza bruta (5 intentos por minuto)
@@ -34,14 +39,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/password', [AuthController::class, 'changePassword']);
 
     // CRUD Entidades Maestras
+    Route::get('/docentes/yo', [DocenteController::class, 'miPerfil']);
     Route::apiResource('docentes', DocenteController::class);
     Route::apiResource('materias', MateriaController::class);
     Route::apiResource('aulas', AulaController::class);
     Route::apiResource('grupos', GrupoController::class);
     Route::apiResource('administrativos', AdministrativoController::class);
     Route::apiResource('periodos', PeriodoController::class);
-    Route::apiResource('bloques-horarios', BloqueHorarioController::class);
+    Route::apiResource('bloques-horarios', BloqueHorarioController::class)
+    ->parameters([
+        'bloques-horarios' => 'bloqueHorario',
+    ]);
+
     Route::apiResource('areas-academicas', AreaAcademicaController::class);
+    Route::apiResource('areas-administrativas', AreaAdministrativaController::class)
+    ->parameters([
+        'areas-administrativas' => 'areaAdministrativa',
+    ]);
+
 
     // Catálogos para bloques horarios
     Route::get('/dias', [DiaController::class, 'index']);
@@ -70,13 +85,45 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/periodo/{periodoId}', [HorarioController::class, 'porPeriodo']);
     });
 
-    // Asistencia - CU13, CU14, CU15
+    // Asistencia - CU13, CU14, CU15, CU16, CU17, CU18
     Route::prefix('asistencias')->group(function () {
         Route::get('/', [AsistenciaController::class, 'index']);
+        Route::get('/historial-propio', [AsistenciaController::class, 'historialPropio']);
+        Route::get('/historial-general', [AsistenciaController::class, 'historialGeneral']);
+        Route::get('/estadisticas', [AsistenciaController::class, 'estadisticas']);
         Route::get('/{asistencia}', [AsistenciaController::class, 'show']);
+        Route::post('/', [AsistenciaController::class, 'store']);
+        Route::put('/{asistencia}', [AsistenciaController::class, 'update']);
+        Route::delete('/{asistencia}', [AsistenciaController::class, 'destroy']);
         Route::post('/generar-qr', [AsistenciaController::class, 'generarQR']);
         Route::post('/escanear-qr', [AsistenciaController::class, 'escanearQR']);
         Route::post('/confirmar-virtual', [AsistenciaController::class, 'confirmarVirtual']);
+    });
+
+    // Gestión de Catálogos de Asistencia - CU19, CU20
+    Route::apiResource('estados-asistencia', EstadoAsistenciaController::class)
+    ->parameters([
+        'estados-asistencia' => 'estadoAsistencia',
+    ]);
+    Route::apiResource('metodos-registro', MetodoRegistroAsistenciaController::class)
+    ->parameters([
+        'metodos-registro' => 'metodoRegistro',
+    ]);
+
+
+    // Reportes de Asistencia - CU28, CU29, CU30
+    Route::prefix('reportes/asistencia')->group(function () {
+        Route::post('/generar', [ReporteAsistenciaController::class, 'generar']);
+        Route::post('/exportar-pdf', [ReporteAsistenciaController::class, 'exportarPDF']);
+        Route::post('/exportar-excel', [ReporteAsistenciaController::class, 'exportarExcel']);
+    });
+
+    // Importación Masiva - CU24
+    Route::prefix('importaciones')->group(function () {
+        Route::post('/validar', [ImportacionController::class, 'validar']);
+        Route::post('/importar', [ImportacionController::class, 'importar']);
+        Route::get('/historial', [ImportacionController::class, 'historial']);
+        Route::get('/descargar-plantilla', [ImportacionController::class, 'descargarPlantilla']);
     });
 
     // Bitácora - CU27

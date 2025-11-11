@@ -3,10 +3,15 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
     FaBars,
+    FaBook,
+    FaBuilding,
     FaCalendarAlt,
     FaChalkboardTeacher,
+    FaClipboardList,
+    FaFileAlt,
     FaListAlt,
     FaQrcode,
+    FaRegCalendarCheck,
     FaSchool,
     FaSignOutAlt,
     FaTable,
@@ -64,10 +69,15 @@ export default function AppShell({ children }) {
         setSidebarOpen(isDesktop);
     }, [isDesktop]);
 
-    const roles = Array.isArray(user?.roles)
-        ? user.roles.map((r) => (typeof r === 'string' ? r : r?.nombre)).filter(Boolean)
-        : [];
-    const isAdmin = roles.includes('administrador_academico');
+    const rawRoles = Array.isArray(user?.roles) ? user.roles : [];
+    const normalizedRoles = rawRoles
+        .map((r) => (typeof r === 'string' ? r : r?.nombre))
+        .filter(Boolean)
+        .map((value) => value.toLowerCase());
+    const displayRoles = normalizedRoles.map((value) => value.toUpperCase());
+    const isAdmin = normalizedRoles.includes('administrador_academico');
+    const isDocente = normalizedRoles.includes('docente');
+    const hasRole = (role) => normalizedRoles.includes(role.toLowerCase());
 
     const onLogout = async () => {
         await logout();
@@ -133,33 +143,63 @@ export default function AppShell({ children }) {
             title: 'PLANIFICACIÓN',
             items: [
                 { to: '/horarios', icon: FaCalendarAlt, label: 'Horarios' },
-                { to: '/horarios/generar', icon: FaListAlt, label: 'Generar horario' },
+                { to: '/horarios/generar', icon: FaRegCalendarCheck, label: 'Generar horario' },
             ],
         },
         {
-                title: 'ASISTENCIA',
-                items: [
-                    { to: '/asistencias/qr', icon: FaQrcode, label: 'Generar y Escanear QR' },
-                    { to: '/asistencias/confirmar-virtual', icon: FaListAlt, label: 'Confirmar asistencia' },
-                ],
-            },
+            title: 'ASISTENCIA',
+            items: [
+                { to: '/asistencias/qr', icon: FaQrcode, label: 'Generar y Escanear QR' },
+                { to: '/asistencias/confirmar-virtual', icon: FaClipboardList, label: 'Confirmar asistencia' },
+                {
+                    to: '/asistencias/registrar',
+                    icon: FaUserTie,
+                    label: 'Registrar asistencia',
+                    roles: ['administrador_academico'],
+                },
+                {
+                    to: '/asistencias/estados',
+                    icon: FaClipboardList,
+                    label: 'Estados de asistencia',
+                    roles: ['administrador_academico'],
+                },
+                {
+                    to: '/asistencias/metodos',
+                    icon: FaListAlt,
+                    label: 'Métodos de registro',
+                    roles: ['administrador_academico'],
+                },
+                {
+                    to: '/asistencias/historial',
+                    icon: FaFileAlt,
+                    label: 'Historial general',
+                    roles: ['administrador_academico'],
+                },
+                {
+                    to: '/asistencias/mihistorial',
+                    icon: FaFileAlt,
+                    label: 'Mi historial',
+                    roles: ['docente'],
+                },
+            ],
+        },
     ];
 
     if (isAdmin) {
-            navSections.push({
-                title: 'ADMINISTRACIÓN',
-                items: [
+        navSections.push({
+            title: 'ADMINISTRACIÓN',
+            items: [
                 { to: '/docentes', icon: FaChalkboardTeacher, label: 'Docentes' },
-                { to: '/areas-academicas', icon: FaListAlt, label: 'Áreas académicas' },
+                { to: '/areas-academicas', icon: FaBook, label: 'Áreas académicas' },
                 { to: '/administrativos', icon: FaUserTie, label: 'Administrativos' },
-                    { to: '/materias', icon: FaListAlt, label: 'Materias' },
-                    { to: '/aulas', icon: FaSchool, label: 'Aulas' },
-                    { to: '/grupos', icon: FaUsers, label: 'Grupos' },
-                    { to: '/bloques', icon: FaCalendarAlt, label: 'Bloques horario' },
-                    { to: '/periodos', icon: FaCalendarAlt, label: 'Períodos' },
+                { to: '/materias', icon: FaBook, label: 'Materias' },
+                { to: '/aulas', icon: FaBuilding, label: 'Aulas' },
+                { to: '/grupos', icon: FaUsers, label: 'Grupos' },
+                { to: '/bloques', icon: FaCalendarAlt, label: 'Bloques horario' },
+                { to: '/periodos', icon: FaCalendarAlt, label: 'Períodos' },
                 { to: '/usuarios', icon: FaUser, label: 'Usuarios' },
                 { to: '/roles', icon: FaUsers, label: 'Roles' },
-                { to: '/bitacora', icon: FaListAlt, label: 'Bitácora' },
+                { to: '/bitacora', icon: FaClipboardList, label: 'Bitácora' },
             ],
         });
     }
@@ -195,6 +235,9 @@ export default function AppShell({ children }) {
                 <div className="appshell-spacer" />
                 <div className="appshell-user">
                     <span className="appshell-user-name">{user?.nombre_completo || user?.email}</span>
+                    {displayRoles.length > 0 && (
+                        <span className="appshell-user-role">({displayRoles.join(', ')})</span>
+                    )}
                     <button
                         type="button"
                         className="appshell-user-link"
@@ -228,14 +271,16 @@ export default function AppShell({ children }) {
                 {navSections.map(({ title, items }) => (
                     <div key={title} className="appshell-navgroup">
                         <div className="appshell-section">{title}</div>
-                        {items.map((link) => (
-                            <Item
-                                key={link.to}
-                                to={link.to}
-                                icon={link.icon}
-                                collapsed={isDesktop && !sidebarOpen}
-                                onClick={closeSidebarOnMobile}
-                            >
+                        {items
+                .filter((link) => !link.roles || link.roles.some((required) => hasRole(required)))
+                            .map((link) => (
+                                <Item
+                                    key={link.to}
+                                    to={link.to}
+                                    icon={link.icon}
+                                    collapsed={isDesktop && !sidebarOpen}
+                                    onClick={closeSidebarOnMobile}
+                                >
                                 {link.label}
                             </Item>
                         ))}
