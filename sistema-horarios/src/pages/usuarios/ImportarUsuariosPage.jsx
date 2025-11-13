@@ -1,363 +1,194 @@
 import { useState } from 'react';
-import { Upload, Download, FileText, AlertCircle, CheckCircle, XCircle, History } from 'lucide-react';
+import { Upload, Download, FileText } from 'lucide-react';
 import importacionService from '../../services/importacionService';
 import Alert from '../../components/Alert';
 
 const ImportarUsuariosPage = () => {
-    const [tipoImportacion, setTipoImportacion] = useState('docentes');
     const [archivo, setArchivo] = useState(null);
+    const [resultados, setResultados] = useState(null);
     const [validando, setValidando] = useState(false);
     const [importando, setImportando] = useState(false);
-    const [preview, setPreview] = useState(null);
-    const [resultado, setResultado] = useState(null);
-    const [historial, setHistorial] = useState([]);
-    const [mostrarHistorial, setMostrarHistorial] = useState(false);
     const [alert, setAlert] = useState({ show: false, type: '', message: '' });
+    const [preview, setPreview] = useState(null);
 
-    const mostrarAlerta = (type, message) => {
+    const mensaje = (type, message) => {
         setAlert({ show: true, type, message });
         setTimeout(() => setAlert({ show: false, type: '', message: '' }), 5000);
     };
 
-    const handleDescargarPlantilla = async () => {
+    const descargarPlantilla = async () => {
         try {
-            await importacionService.descargarPlantilla(tipoImportacion);
-            mostrarAlerta('success', 'Plantilla descargada exitosamente');
+            await importacionService.descargarPlantilla('docentes');
+            mensaje('success', 'Plantilla descargada. Revisa la carpeta de descargas.');
         } catch (error) {
-            mostrarAlerta('error', 'Error al descargar plantilla: ' + (error.response?.data?.message || error.message));
+            mensaje('error', 'Error descargando plantilla: ' + (error.response?.data?.message || error.message));
         }
     };
 
-    const handleArchivoChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            if (!file.name.match(/\.(xlsx|xls|csv)$/)) {
-                mostrarAlerta('error', 'Solo se permiten archivos Excel (.xlsx, .xls) o CSV');
-                return;
-            }
-            if (file.size > 5 * 1024 * 1024) {
-                mostrarAlerta('error', 'El archivo no debe superar los 5MB');
-                return;
-            }
-            setArchivo(file);
-            setPreview(null);
-            setResultado(null);
-        }
-    };
-
-    const handleValidar = async () => {
-        if (!archivo) {
-            mostrarAlerta('error', 'Debe seleccionar un archivo');
+    const onArchivoSeleccionado = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const extensiones = /\.(xlsx|xls|csv)$/i;
+        if (!extensiones.test(file.name)) {
+            mensaje('error', 'El archivo debe ser Excel o CSV.');
             return;
         }
+        if (file.size > 5 * 1024 * 1024) {
+            mensaje('error', 'El archivo no debe exceder 5 MB.');
+            return;
+        }
+        setArchivo(file);
+        setPreview(null);
+        setResultados(null);
+    };
 
+    const validarArchivo = async () => {
+        if (!archivo) {
+            mensaje('error', 'Selecciona un archivo antes de validar.');
+            return;
+        }
         setValidando(true);
         try {
-            const response = await importacionService.validar(archivo, tipoImportacion);
+            const response = await importacionService.validar(archivo);
             if (response.success) {
                 setPreview(response.data);
-                mostrarAlerta('success', 'Validación completada');
+                mensaje('success', 'Archivo validado correctamente.');
             } else {
-                mostrarAlerta('error', response.message || 'Error al validar archivo');
+                mensaje('error', response.message || 'No se pudo validar el archivo.');
             }
         } catch (error) {
-            mostrarAlerta('error', 'Error al validar: ' + (error.response?.data?.message || error.message));
-            setPreview(null);
+            mensaje('error', 'Error al validar: ' + (error.response?.data?.message || error.message));
         } finally {
             setValidando(false);
         }
     };
 
-    const handleImportar = async () => {
+    const importarArchivo = async () => {
         if (!archivo) {
-            mostrarAlerta('error', 'Debe seleccionar un archivo');
+            mensaje('error', 'Debes seleccionar un archivo para importar.');
             return;
         }
-
-        if (preview && preview.tiene_errores) {
-            mostrarAlerta('error', 'El archivo tiene errores. Corrija los errores antes de importar');
+        if (preview?.tiene_errores) {
+            mensaje('error', 'Corrige los errores detectados antes de importar.');
             return;
         }
-
         setImportando(true);
         try {
-            const response = await importacionService.importar(archivo, tipoImportacion);
+            const response = await importacionService.importar(archivo);
             if (response.success) {
-                setResultado(response.data);
-                mostrarAlerta('success', response.message || 'Importación completada');
-                setArchivo(null);
-                setPreview(null);
-                // Reset file input
-                document.getElementById('archivo-input').value = '';
+                setResultados(response.data);
+                mensaje('success', response.message || 'Importación completada.');
             } else {
-                mostrarAlerta('error', response.message || 'Error al importar');
+                mensaje('error', response.message || 'No se pudo completar la importación.');
             }
         } catch (error) {
-            mostrarAlerta('error', 'Error al importar: ' + (error.response?.data?.message || error.message));
+            mensaje('error', 'Error al importar: ' + (error.response?.data?.message || error.message));
         } finally {
             setImportando(false);
         }
     };
 
-    const handleCargarHistorial = async () => {
-        try {
-            const response = await importacionService.historial({ tipo_importacion: tipoImportacion });
-            if (response.success) {
-                setHistorial(response.data);
-                setMostrarHistorial(true);
-            }
-        } catch (error) {
-            mostrarAlerta('error', 'Error al cargar historial: ' + (error.response?.data?.message || error.message));
-        }
-    };
-
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-            <div className="max-w-6xl mx-auto">
+        <div className="min-h-screen bg-gray-50 px-6 py-8">
+            <div className="max-w-4xl mx-auto space-y-6">
                 {alert.show && <Alert type={alert.type} message={alert.message} />}
 
-                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <h1 className="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-                        <Upload className="w-8 h-8 text-indigo-600" />
-                        Importación Masiva de Usuarios
-                    </h1>
-
-                    {/* Selector de Tipo */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Tipo de Importación
-                        </label>
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => { setTipoImportacion('docentes'); setPreview(null); setResultado(null); }}
-                                className={`flex-1 py-3 px-4 rounded-lg font-medium transition ${
-                                    tipoImportacion === 'docentes'
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                                Docentes
-                            </button>
-                            <button
-                                onClick={() => { setTipoImportacion('estudiantes'); setPreview(null); setResultado(null); }}
-                                className={`flex-1 py-3 px-4 rounded-lg font-medium transition ${
-                                    tipoImportacion === 'estudiantes'
-                                        ? 'bg-green-600 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                                Estudiantes
-                            </button>
-                            <button
-                                onClick={() => { setTipoImportacion('usuarios'); setPreview(null); setResultado(null); }}
-                                className={`flex-1 py-3 px-4 rounded-lg font-medium transition ${
-                                    tipoImportacion === 'usuarios'
-                                        ? 'bg-amber-600 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                                Usuarios
-                            </button>
+                <section className="bg-white rounded-[32px] border border-gray-100 shadow-xl p-8 space-y-8">
+                    <header className="flex items-center gap-3">
+                        <Upload className="w-9 h-9 text-indigo-600" />
+                        <div>
+                            <p className="text-xs uppercase tracking-[0.3em] text-indigo-500 font-semibold">Ayuda</p>
+                            <h1 className="text-3xl font-bold text-gray-900">Importación masiva de docentes</h1>
                         </div>
-                    </div>
+                    </header>
 
-                    {/* Descargar Plantilla */}
-                    <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="flex items-start gap-3">
-                            <FileText className="w-5 h-5 text-blue-600 mt-0.5" />
-                            <div className="flex-1">
-                                <h3 className="font-medium text-gray-800 mb-1">Plantilla Excel</h3>
-                                <p className="text-sm text-gray-600 mb-3">
-                                    Descarga la plantilla de ejemplo para {tipoImportacion}. Completa los datos y súbela para importar.
-                                </p>
-                                <button
-                                    onClick={handleDescargarPlantilla}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                                >
-                                    <Download className="w-4 h-4" />
-                                    Descargar Plantilla
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Subir Archivo */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Seleccionar Archivo
-                        </label>
-                        <div className="flex gap-3">
-                            <input
-                                id="archivo-input"
-                                type="file"
-                                accept=".xlsx,.xls,.csv"
-                                onChange={handleArchivoChange}
-                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                            />
-                            <button
-                                onClick={handleValidar}
-                                disabled={!archivo || validando}
-                                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
-                            >
-                                {validando ? 'Validando...' : 'Validar'}
-                            </button>
-                        </div>
-                        {archivo && (
-                            <p className="mt-2 text-sm text-gray-600">
-                                Archivo seleccionado: <span className="font-medium">{archivo.name}</span> ({(archivo.size / 1024).toFixed(2)} KB)
+                    <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50 p-5 flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <p className="text-lg font-semibold text-gray-900">Plantilla oficial</p>
+                            <p className="text-sm text-gray-600">
+                                Descarga la plantilla con CI, correo institucional y datos base. La contraseña será igual al CI.
                             </p>
-                        )}
+                        </div>
+                        <button
+                            onClick={descargarPlantilla}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-indigo-600 border border-indigo-100 text-sm font-semibold hover:bg-indigo-50 transition"
+                        >
+                            <Download className="w-4 h-4" />
+                            Descargar plantilla
+                        </button>
                     </div>
 
-                    {/* Vista Previa */}
-                    {preview && (
-                        <div className="mb-6 p-4 border rounded-lg">
-                            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                                {preview.tiene_errores ? (
-                                    <><XCircle className="w-5 h-5 text-red-600" /> Vista Previa (Con Errores)</>
-                                ) : (
-                                    <><CheckCircle className="w-5 h-5 text-green-600" /> Vista Previa (Sin Errores)</>
-                                )}
-                            </h3>
-                            <div className="mb-3 flex gap-4 text-sm">
-                                <span className="font-medium">Total registros: {preview.total_registros}</span>
-                                {preview.errores_preview?.length > 0 && (
-                                    <span className="text-red-600 font-medium">Errores: {preview.errores_preview.length}</span>
-                                )}
-                            </div>
-
-                            {/* Tabla de Preview */}
-                            <div className="overflow-x-auto max-h-96 overflow-y-auto">
-                                <table className="w-full text-sm border-collapse">
-                                    <thead className="bg-gray-100 sticky top-0">
-                                        <tr>
-                                            <th className="border p-2">Fila</th>
-                                            {preview.encabezados?.map((enc, i) => (
-                                                <th key={i} className="border p-2">{enc}</th>
-                                            ))}
-                                            <th className="border p-2">Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {preview.preview?.map((row, i) => (
-                                            <tr key={i} className={row.valido ? '' : 'bg-red-50'}>
-                                                <td className="border p-2 text-center">{row.fila}</td>
-                                                {row.datos?.map((dato, j) => (
-                                                    <td key={j} className="border p-2">{dato || '-'}</td>
-                                                ))}
-                                                <td className="border p-2 text-center">
-                                                    {row.valido ? (
-                                                        <CheckCircle className="w-4 h-4 text-green-600 mx-auto" />
-                                                    ) : (
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <XCircle className="w-4 h-4 text-red-600" />
-                                                            <span className="text-xs text-red-600">{row.error}</span>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Botón Importar */}
-                            <div className="mt-4 flex justify-end">
-                                <button
-                                    onClick={handleImportar}
-                                    disabled={importando || preview.tiene_errores}
-                                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center gap-2"
-                                >
-                                    {importando ? (
-                                        'Importando...'
-                                    ) : (
-                                        <>
-                                            <Upload className="w-4 h-4" />
-                                            Confirmar Importación
-                                        </>
-                                    )}
-                                </button>
-                            </div>
+                    <div className="bg-gray-100 rounded-2xl p-6 space-y-4">
+                        <p className="text-sm font-semibold text-gray-700">Carga el archivo</p>
+                        <div className="flex flex-wrap gap-3">
+                            <label className="flex-1 min-w-[220px]">
+                                <input
+                                    id="archivo-input"
+                                    type="file"
+                                    accept=".xlsx,.xls,.csv"
+                                    onChange={onArchivoSeleccionado}
+                                    className="hidden"
+                                />
+                                <div className="px-4 py-3 border border-transparent rounded-2xl bg-white flex justify-between items-center text-sm text-gray-600 hover:border-indigo-300 cursor-pointer">
+                                    <span>{archivo ? archivo.name : 'Seleccionar archivo'}</span>
+                                    <span className="text-xs text-indigo-500 uppercase tracking-wider">Explorar</span>
+                                </div>
+                            </label>
+                            <button
+                                onClick={validarArchivo}
+                                disabled={!archivo || validando}
+                                className="px-5 py-3 rounded-2xl bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+                            >
+                                {validando ? 'Validando...' : 'Validar archivo'}
+                            </button>
                         </div>
-                    )}
+                        <p className="text-xs text-gray-500">Tamaño: {archivo ? `${(archivo.size / 1024).toFixed(2)} KB` : 'N/A'}</p>
+                    </div>
 
-                    {/* Resultado de Importación */}
-                    {resultado && (
-                        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2 text-green-800">
-                                <CheckCircle className="w-5 h-5" />
-                                Importación Completada
-                            </h3>
-                            <div className="grid grid-cols-3 gap-4 text-center">
-                                <div>
-                                    <p className="text-3xl font-bold text-gray-800">{resultado.total_registros}</p>
-                                    <p className="text-sm text-gray-600">Total</p>
-                                </div>
-                                <div>
-                                    <p className="text-3xl font-bold text-green-600">{resultado.exitosos}</p>
-                                    <p className="text-sm text-gray-600">Exitosos</p>
-                                </div>
-                                <div>
-                                    <p className="text-3xl font-bold text-red-600">{resultado.fallidos}</p>
-                                    <p className="text-sm text-gray-600">Fallidos</p>
-                                </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                        <button
+                            onClick={importarArchivo}
+                            disabled={!archivo || importando}
+                            className="px-5 py-3 rounded-2xl bg-emerald-600 text-white font-semibold shadow-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+                        >
+                            {importando ? 'Importando...' : 'Importar docentes'}
+                        </button>
+                        <button
+                            onClick={() => mensaje('info', 'Historial próximo a implementarse.')}
+                            className="px-5 py-3 rounded-2xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition"
+                        >
+                            Ver historial
+                        </button>
+                    </div>
+
+                    {preview && (
+                        <div className="space-y-4">
+                            <div className="px-5 py-3 rounded-2xl border border-yellow-200 bg-yellow-50 text-sm text-gray-700">
+                                {preview.tiene_errores
+                                    ? `Se detectaron ${preview.errores_preview?.length || 0} error(es). Corrige las filas indicadas antes de continuar.`
+                                    : `Archivo validado (${preview.total_registros} registros listos).`}
                             </div>
-
-                            {resultado.errores_detalle && resultado.errores_detalle.length > 0 && (
-                                <details className="mt-4">
-                                    <summary className="cursor-pointer font-medium text-red-700">Ver errores ({resultado.errores_detalle.length})</summary>
-                                    <ul className="mt-2 space-y-1 text-sm">
-                                        {resultado.errores_detalle.map((err, i) => (
-                                            <li key={i} className="text-red-600">
-                                                Fila {err.fila}: {err.error}
+                            {preview.errores_preview?.length > 0 && (
+                                <div className="px-5 py-3 rounded-2xl border border-red-200 bg-red-50 text-sm text-gray-700">
+                                    <p className="font-semibold text-red-600">Errores detallados</p>
+                                    <ul className="mt-2 space-y-2 list-disc list-inside">
+                                        {preview.errores_preview.map((error) => (
+                                            <li key={`${error.fila}-${error.error}`}>
+                                                Fila {error.fila}: {error.error}. Si es CI o teléfono, escríbelo como texto (por ejemplo, precede con ') para que Excel no convierta el valor en número.
                                             </li>
                                         ))}
                                     </ul>
-                                </details>
+                                </div>
                             )}
                         </div>
                     )}
 
-                    {/* Historial */}
-                    <div className="mt-6">
-                        <button
-                            onClick={handleCargarHistorial}
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-                        >
-                            <History className="w-4 h-4" />
-                            Ver Historial de Importaciones
-                        </button>
-
-                        {mostrarHistorial && historial.length > 0 && (
-                            <div className="mt-4 border rounded-lg overflow-hidden">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-100">
-                                        <tr>
-                                            <th className="p-3 text-left">Fecha</th>
-                                            <th className="p-3 text-left">Tipo</th>
-                                            <th className="p-3 text-center">Total</th>
-                                            <th className="p-3 text-center">Exitosos</th>
-                                            <th className="p-3 text-center">Fallidos</th>
-                                            <th className="p-3 text-left">Archivo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {historial.map((item, i) => (
-                                            <tr key={i} className="border-t hover:bg-gray-50">
-                                                <td className="p-3">{new Date(item.fecha_importacion).toLocaleString()}</td>
-                                                <td className="p-3 capitalize">{item.tipo_importacion}</td>
-                                                <td className="p-3 text-center">{item.total_registros}</td>
-                                                <td className="p-3 text-center text-green-600 font-medium">{item.exitosos}</td>
-                                                <td className="p-3 text-center text-red-600 font-medium">{item.fallidos}</td>
-                                                <td className="p-3 text-sm text-gray-600">{item.archivo_original}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                    {resultados && (
+                        <div className="px-5 py-3 rounded-2xl border border-blue-100 bg-blue-50 text-sm text-gray-700">
+                            {resultados.mensaje || 'Importación procesada. Busca los detalles en el historial.'}
+                        </div>
+                    )}
+                </section>
             </div>
         </div>
     );

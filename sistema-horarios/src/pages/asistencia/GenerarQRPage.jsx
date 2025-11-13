@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api.js';
+import asistenciaService from '../../services/asistenciaService.js';
 import Alert from '../../components/Alert.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
 
@@ -16,9 +17,7 @@ function GenerarQRPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const response = await api.get('/horarios');
-        const payload = response.data?.data ?? response.data;
-        const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+        const rows = await asistenciaService.obtenerHorariosDisponibles(1);
         setHorarios(rows);
       } catch (err) {
         console.error('Error cargando horarios:', err);
@@ -69,11 +68,7 @@ function GenerarQRPage() {
     if (code) navigator.clipboard.writeText(code);
   };
 
-  const horariosPresenciales = horarios.filter((h) => {
-    const nombre = h?.modalidad?.nombre || h?.modalidad_nombre || '';
-    const id = h?.modalidad_id;
-    return (typeof nombre === 'string' && nombre.toLowerCase().includes('presencial')) || id === 1;
-  });
+  const horariosDisponibles = horarios;
 
   return (
     <div className="space-y-6">
@@ -101,7 +96,7 @@ function GenerarQRPage() {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">Seleccionar horario</option>
-            {horariosPresenciales.map((h) => {
+            {horariosDisponibles.map((h) => {
               const bloque = h?.bloque_horario || h?.bloqueHorario;
               const dia = bloque?.dia?.nombre || '-';
               return (
@@ -121,7 +116,18 @@ function GenerarQRPage() {
         >
           {loading ? 'Generando...' : 'Generar Código QR'}
         </button>
-      </form>
+        </form>
+
+      {!horariosDisponibles.length && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+          <p className="text-sm font-semibold text-yellow-800">
+            No hay clases presenciales disponibles en la ventana actual.
+          </p>
+          <p className="text-sm text-yellow-700">
+            Asegúrate de estar dentro de ±15 minutos del inicio de una clase para generar un QR.
+          </p>
+        </div>
+      )}
 
       {qrData && (
         <div className="bg-white rounded-lg shadow p-6 space-y-6">
@@ -166,4 +172,3 @@ function GenerarQRPage() {
 }
 
 export default GenerarQRPage;
-

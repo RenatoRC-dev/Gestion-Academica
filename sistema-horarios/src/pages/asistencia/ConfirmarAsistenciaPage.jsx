@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api.js';
 import horarioService from '../../services/horarioService.js';
+import asistenciaService from '../../services/asistenciaService.js';
 import Alert from '../../components/Alert.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
 
@@ -53,7 +54,7 @@ function ConfirmarAsistenciaPage() {
 
     const cargarHorariosVirtuales = async () => {
         try {
-            const data = await horarioService.obtenerVirtualesDocente();
+            const data = await asistenciaService.obtenerHorariosDisponibles(2, { virtualAutorizado: true });
             setHorarios(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error('Error cargando horarios virtuales:', err);

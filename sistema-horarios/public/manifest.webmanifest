@@ -1,0 +1,19 @@
+{
+  "name": "Gestión Académica",
+  "short_name": "Gestión Académica",
+  "description": "Gestión de horarios y asistencia académica con soporte offline",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

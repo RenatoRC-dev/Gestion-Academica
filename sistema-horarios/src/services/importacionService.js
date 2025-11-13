@@ -4,10 +4,10 @@ const importacionService = {
     /**
      * Validar archivo antes de importar (vista previa)
      */
-    validar: async (archivo, tipoImportacion) => {
+    validar: async (archivo) => {
         const formData = new FormData();
         formData.append('archivo', archivo);
-        formData.append('tipo_importacion', tipoImportacion);
+        formData.append('tipo_importacion', 'docentes');
 
         const { data } = await api.post('/importaciones/validar', formData, {
             headers: {
@@ -20,10 +20,10 @@ const importacionService = {
     /**
      * Procesar importación masiva
      */
-    importar: async (archivo, tipoImportacion) => {
+    importar: async (archivo) => {
         const formData = new FormData();
         formData.append('archivo', archivo);
-        formData.append('tipo_importacion', tipoImportacion);
+        formData.append('tipo_importacion', 'docentes');
 
         const { data } = await api.post('/importaciones/importar', formData, {
             headers: {
@@ -44,17 +44,18 @@ const importacionService = {
     /**
      * Descargar plantilla Excel de ejemplo
      */
-    descargarPlantilla: async (tipo) => {
+    descargarPlantilla: async () => {
         const response = await api.get('/importaciones/descargar-plantilla', {
-            params: { tipo },
+            params: { ts: Date.now() },
             responseType: 'blob',
+            headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
         });
 
         // Crear blob y descargar
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `plantilla_${tipo}.xlsx`);
+        link.setAttribute('download', 'plantilla_docentes.xlsx');
         document.body.appendChild(link);
         link.click();
         link.remove();

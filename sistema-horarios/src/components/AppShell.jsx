@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
@@ -9,6 +9,7 @@ import {
     FaChalkboardTeacher,
     FaClipboardList,
     FaFileAlt,
+    FaFileUpload,
     FaLandmark,
     FaListAlt,
     FaQrcode,
@@ -22,6 +23,8 @@ import {
 } from 'react-icons/fa';
 import Modal from './Modal.jsx';
 import { useToast } from './ToastProvider.jsx';
+import { registerSW } from 'virtual:pwa-register';
+import { suppressOnlineWindow } from '../services/api.js';
 
 const Item = ({ to, icon: Icon, children, onClick, collapsed }) => (
     <NavLink
@@ -46,6 +49,75 @@ export default function AppShell({ children }) {
     const [isDesktop, setIsDesktop] = useState(prefersDesktop);
     const [sidebarOpen, setSidebarOpen] = useState(prefersDesktop);
     const toast = useToast();
+    const [isOffline, setIsOffline] = useState(() =>
+        typeof navigator === 'undefined' ? false : !navigator.onLine
+    );
+    const [needRefresh, setNeedRefresh] = useState(false);
+    const updateServiceWorker = useRef(null);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return undefined;
+        }
+        const handleOnline = () => setIsOffline(false);
+        const handleOffline = () => setIsOffline(true);
+        const handleNetworkState = (event) => {
+            const online = event?.detail?.online;
+            if (typeof online === 'boolean') {
+                setIsOffline(!online);
+            }
+        };
+        const handleWorkerMessage = (event) => {
+            if (event?.data?.type === 'WORKBOX_NETWORK_FAILURE') {
+                setIsOffline(true);
+                suppressOnlineWindow(3000);
+            }
+        };
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        window.addEventListener('app-network-state', handleNetworkState);
+        if ('serviceWorker' in navigator && navigator.serviceWorker) {
+            navigator.serviceWorker.addEventListener('message', handleWorkerMessage);
+        }
+        window.addEventListener('message', handleWorkerMessage);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+            window.removeEventListener('app-network-state', handleNetworkState);
+            if ('serviceWorker' in navigator && navigator.serviceWorker) {
+                navigator.serviceWorker.removeEventListener('message', handleWorkerMessage);
+            }
+            window.removeEventListener('message', handleWorkerMessage);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return undefined;
+        }
+
+        updateServiceWorker.current = registerSW({
+            onNeedRefresh() {
+                setNeedRefresh(true);
+                toast.push('Nueva versión disponible. Haz clic en "Actualizar app" cuando quieras refrescar.', 'info');
+            },
+            onOfflineReady() {
+                toast.push('La aplicación está lista para usarse sin conexión.', 'success');
+            },
+        });
+    }, [toast]);
+
+    const handleUpdateApp = async () => {
+        if (!updateServiceWorker.current) {
+            return;
+        }
+        try {
+            await updateServiceWorker.current();
+            window.location.reload();
+        } catch (error) {
+            toast.push('No se pudo actualizar la aplicación. Intenta recargar manualmente.', 'error');
+        }
+    };
     const [passwordModalOpen, setPasswordModalOpen] = useState(false);
     const [passwordForm, setPasswordForm] = useState({
         current_password: '',
@@ -200,6 +272,7 @@ export default function AppShell({ children }) {
                 { to: '/bloques', icon: FaCalendarAlt, label: 'Bloques horario' },
                 { to: '/periodos', icon: FaCalendarAlt, label: 'Períodos' },
                 { to: '/usuarios', icon: FaUser, label: 'Usuarios' },
+                { to: '/usuarios/importar', icon: FaFileUpload, label: 'Importar usuarios' },
                 { to: '/roles', icon: FaUsers, label: 'Roles' },
                 { to: '/bitacora', icon: FaClipboardList, label: 'Bitácora' },
             ],
@@ -235,6 +308,20 @@ export default function AppShell({ children }) {
                     Gestión Académica
                 </div>
                 <div className="appshell-spacer" />
+                <div className="appshell-status-group">
+                    <span className={`appshell-status ${isOffline ? 'offline' : 'online'}`}>
+                        {isOffline ? 'Modo offline' : 'Conectado'}
+                    </span>
+                    {needRefresh && (
+                        <button
+                            type="button"
+                            className="appshell-status-update"
+                            onClick={handleUpdateApp}
+                        >
+                            Actualizar app
+                        </button>
+                    )}
+                </div>
                 <div className="appshell-user">
                     <span className="appshell-user-name">{user?.nombre_completo || user?.email}</span>
                     {displayRoles.length > 0 && (

@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import UsuariosPage from './pages/administracion/UsuariosPage.jsx';
 import RolesPage from './pages/administracion/RolesPage.jsx';
 import BitacoraPage from './pages/administracion/BitacoraPage.jsx';
+import ImportarUsuariosPage from './pages/usuarios/ImportarUsuariosPage.jsx';
 
 // Páginas Académicas
 import PeriodosPage from './pages/academica/PeriodosPage.jsx';
@@ -99,6 +100,7 @@ function AuthContent() {
                     {/* Rutas de Administración */}
                     <Route element={<ProtectedRoute requireRoles={[ROLES.ADMIN]} />}>
                         <Route path="/usuarios" element={<UsuariosPage />} />
+                        <Route path="/usuarios/importar" element={<ImportarUsuariosPage />} />
                         <Route path="/roles" element={<RolesPage />} />
                         <Route path="/bitacora" element={<BitacoraPage />} />
 

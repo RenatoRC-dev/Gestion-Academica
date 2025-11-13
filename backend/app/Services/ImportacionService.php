@@ -35,27 +35,18 @@ class ImportacionService
 
             DB::beginTransaction();
 
-            foreach ($data as $index => $fila) {
-                $numeroFila = $index + 2; // +2 porque Excel empieza en 1 y ya quitamos el encabezado
+        foreach ($data as $index => $fila) {
+            $numeroFila = $index + 2; // +2 porque Excel empieza en 1 y ya quitamos el encabezado
 
-                try {
-                    // Validar y procesar según tipo
-                    switch ($tipoImportacion) {
-                        case 'docentes':
-                            $this->importarDocente($fila);
-                            break;
-                        case 'estudiantes':
-                            $this->importarEstudiante($fila);
-                            break;
-                        case 'usuarios':
-                            $this->importarUsuario($fila);
-                            break;
-                        default:
-                            throw new \Exception("Tipo de importación no válido");
-                    }
+            try {
+                // Validar y procesar según tipo
+                if ($tipoImportacion !== 'docentes') {
+                    throw new \Exception("Tipo de importación no soportado");
+                }
+                $this->importarDocente($fila);
 
-                    $exitosos++;
-                } catch (\Exception $e) {
+                $exitosos++;
+            } catch (\Exception $e) {
                     $fallidos++;
                     $errores[] = [
                         'fila' => $numeroFila,
@@ -85,7 +76,13 @@ class ImportacionService
             ];
         } catch (\Exception $e) {
             DB::rollBack();
-            throw $e;
+            \Log::error('Falló importación masiva', [
+                'mensaje' => $e->getMessage(),
+                'archivo' => basename($rutaArchivo),
+                'errores' => $errores,
+                'tipo' => $tipoImportacion,
+            ]);
+            throw new \Exception('No se pudo registrar la importación: ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -106,7 +103,7 @@ class ImportacionService
                 $numeroFila = $index + 2;
 
                 try {
-                    $validado = $this->validarFila($tipoImportacion, $fila);
+                    $validado = $this->validarFila('docentes', $fila);
                     $preview[] = [
                         'fila' => $numeroFila,
                         'datos' => $fila->toArray(),
@@ -144,11 +141,18 @@ class ImportacionService
      */
     private function validarFila(string $tipo, Collection $fila): array
     {
+        if ($tipo !== 'docentes') {
+            throw new \Exception("Tipo no soportado");
+        }
         $reglas = $this->obtenerReglasValidacion($tipo);
 
         $datos = [];
         foreach ($reglas['campos'] as $key => $campo) {
-            $datos[$campo] = $fila[$key] ?? null;
+            $valor = $fila[$key] ?? '';
+            if (in_array($campo, ['ci', 'telefono', 'codigo_docente'], true)) {
+                $valor = (string) $valor;
+            }
+            $datos[$campo] = $valor;
         }
 
         $validator = Validator::make($datos, $reglas['validaciones'], $reglas['mensajes'] ?? []);
@@ -173,29 +177,25 @@ class ImportacionService
             throw new \Exception("El email {$validado['email']} ya está registrado");
         }
 
-        // Crear Usuario
         $usuario = Usuario::create([
+            'nombre_completo' => $validado['nombre_completo'],
             'email' => $validado['email'],
-            'password' => Hash::make($validado['password'] ?? 'temporal123'),
+            'password_hash' => Hash::make($validado['ci']),
             'activo' => true,
         ]);
 
-        // Crear Persona
         $persona = Persona::create([
-            'nombre' => $validado['nombre'],
-            'apellido_paterno' => $validado['apellido_paterno'],
-            'apellido_materno' => $validado['apellido_materno'] ?? null,
+            'nombre_completo' => $validado['nombre_completo'],
             'ci' => $validado['ci'],
+            'telefono_contacto' => $validado['telefono'] ?? null,
+            'direccion' => $validado['direccion'] ?? null,
             'email' => $validado['email'],
-            'telefono' => $validado['telefono'] ?? null,
             'usuario_id' => $usuario->id,
         ]);
 
-        // Crear Docente
         Docente::create([
             'persona_id' => $persona->id,
-            'especialidad' => $validado['especialidad'] ?? null,
-            'grado_academico' => $validado['grado_academico'] ?? null,
+            'codigo_docente' => $validado['codigo_docente'],
         ]);
 
         // Asignar rol de docente
@@ -206,154 +206,28 @@ class ImportacionService
     }
 
     /**
-     * Importar un estudiante
-     */
-    private function importarEstudiante(Collection $fila): void
-    {
-        $validado = $this->validarFila('estudiantes', $fila);
-
-        $usuarioExiste = Usuario::where('email', $validado['email'])->exists();
-        if ($usuarioExiste) {
-            throw new \Exception("El email {$validado['email']} ya está registrado");
-        }
-
-        $usuario = Usuario::create([
-            'email' => $validado['email'],
-            'password' => Hash::make($validado['password'] ?? 'temporal123'),
-            'activo' => true,
-        ]);
-
-        $persona = Persona::create([
-            'nombre' => $validado['nombre'],
-            'apellido_paterno' => $validado['apellido_paterno'],
-            'apellido_materno' => $validado['apellido_materno'] ?? null,
-            'ci' => $validado['ci'],
-            'email' => $validado['email'],
-            'telefono' => $validado['telefono'] ?? null,
-            'usuario_id' => $usuario->id,
-        ]);
-
-        Estudiante::create([
-            'persona_id' => $persona->id,
-            'codigo_estudiante' => $validado['codigo_estudiante'] ?? null,
-        ]);
-
-        $rolEstudiante = Rol::where('nombre', 'estudiante')->first();
-        if ($rolEstudiante) {
-            $usuario->roles()->attach($rolEstudiante->id);
-        }
-    }
-
-    /**
-     * Importar un usuario genérico
-     */
-    private function importarUsuario(Collection $fila): void
-    {
-        $validado = $this->validarFila('usuarios', $fila);
-
-        $usuarioExiste = Usuario::where('email', $validado['email'])->exists();
-        if ($usuarioExiste) {
-            throw new \Exception("El email {$validado['email']} ya está registrado");
-        }
-
-        $usuario = Usuario::create([
-            'email' => $validado['email'],
-            'password' => Hash::make($validado['password'] ?? 'temporal123'),
-            'activo' => true,
-        ]);
-
-        Persona::create([
-            'nombre' => $validado['nombre'],
-            'apellido_paterno' => $validado['apellido_paterno'],
-            'apellido_materno' => $validado['apellido_materno'] ?? null,
-            'ci' => $validado['ci'],
-            'email' => $validado['email'],
-            'telefono' => $validado['telefono'] ?? null,
-            'usuario_id' => $usuario->id,
-        ]);
-
-        // Asignar rol si se especifica
-        if (!empty($validado['rol'])) {
-            $rol = Rol::where('nombre', $validado['rol'])->first();
-            if ($rol) {
-                $usuario->roles()->attach($rol->id);
-            }
-        }
-    }
-
-    /**
      * Obtener reglas de validación según tipo
      */
     private function obtenerReglasValidacion(string $tipo): array
     {
-        switch ($tipo) {
-            case 'docentes':
-                return [
-                    'campos' => ['nombre', 'apellido_paterno', 'apellido_materno', 'ci', 'email', 'telefono', 'especialidad', 'grado_academico'],
-                    'validaciones' => [
-                        'nombre' => 'required|string|max:100',
-                        'apellido_paterno' => 'required|string|max:100',
-                        'apellido_materno' => 'nullable|string|max:100',
-                        'ci' => 'required|string|max:20',
-                        'email' => 'required|email|max:150',
-                        'telefono' => 'nullable|string|max:20',
-                        'especialidad' => 'nullable|string|max:150',
-                        'grado_academico' => 'nullable|string|max:100',
-                    ],
-                    'mensajes' => [
-                        'nombre.required' => 'El nombre es requerido',
-                        'apellido_paterno.required' => 'El apellido paterno es requerido',
-                        'ci.required' => 'El CI es requerido',
-                        'email.required' => 'El email es requerido',
-                        'email.email' => 'El email debe ser válido',
-                    ]
-                ];
-
-            case 'estudiantes':
-                return [
-                    'campos' => ['nombre', 'apellido_paterno', 'apellido_materno', 'ci', 'email', 'telefono', 'codigo_estudiante'],
-                    'validaciones' => [
-                        'nombre' => 'required|string|max:100',
-                        'apellido_paterno' => 'required|string|max:100',
-                        'apellido_materno' => 'nullable|string|max:100',
-                        'ci' => 'required|string|max:20',
-                        'email' => 'required|email|max:150',
-                        'telefono' => 'nullable|string|max:20',
-                        'codigo_estudiante' => 'nullable|string|max:50',
-                    ],
-                    'mensajes' => [
-                        'nombre.required' => 'El nombre es requerido',
-                        'apellido_paterno.required' => 'El apellido paterno es requerido',
-                        'ci.required' => 'El CI es requerido',
-                        'email.required' => 'El email es requerido',
-                        'email.email' => 'El email debe ser válido',
-                    ]
-                ];
-
-            case 'usuarios':
-                return [
-                    'campos' => ['nombre', 'apellido_paterno', 'apellido_materno', 'ci', 'email', 'telefono', 'rol'],
-                    'validaciones' => [
-                        'nombre' => 'required|string|max:100',
-                        'apellido_paterno' => 'required|string|max:100',
-                        'apellido_materno' => 'nullable|string|max:100',
-                        'ci' => 'required|string|max:20',
-                        'email' => 'required|email|max:150',
-                        'telefono' => 'nullable|string|max:20',
-                        'rol' => 'nullable|string|max:50',
-                    ],
-                    'mensajes' => [
-                        'nombre.required' => 'El nombre es requerido',
-                        'apellido_paterno.required' => 'El apellido paterno es requerido',
-                        'ci.required' => 'El CI es requerido',
-                        'email.required' => 'El email es requerido',
-                        'email.email' => 'El email debe ser válido',
-                    ]
-                ];
-
-            default:
-                throw new \Exception("Tipo de importación no soportado");
-        }
+        return [
+            'campos' => ['nombre_completo', 'ci', 'codigo_docente', 'telefono', 'direccion', 'email'],
+            'validaciones' => [
+                'nombre_completo' => 'required|string|max:150',
+                'ci' => 'required|string|max:20',
+                'codigo_docente' => 'required|string|max:50',
+                'telefono' => 'nullable|string|max:20',
+                'direccion' => 'nullable|string|max:255',
+                'email' => 'required|email|max:150',
+            ],
+            'mensajes' => [
+                'nombre_completo.required' => 'El nombre completo es requerido',
+                'ci.required' => 'El CI es requerido',
+                'codigo_docente.required' => 'El código de docente es requerido',
+                'email.required' => 'El email es requerido',
+                'email.email' => 'El email debe ser válido',
+            ]
+        ];
     }
 
     /**

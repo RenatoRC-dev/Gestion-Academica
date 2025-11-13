@@ -655,6 +655,75 @@ class AsistenciaController extends Controller
     }
 
     /**
+     * Retorna horarios del docente que están disponibles para registrar asistencia.
+     */
+    public function horariosDisponibles(Request $request): JsonResponse
+    {
+        try {
+            $modalidad = (int) $request->query('modalidad', 1);
+            $virtualAutorizado = $request->boolean('virtual_autorizado', true);
+
+            $usuarioActual = auth()->user();
+            $tieneRolDocente = $usuarioActual->roles()->where('nombre', 'docente')->exists();
+            if (!$tieneRolDocente) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solo los docentes pueden consultar sus horarios disponibles'
+                ], 403);
+            }
+
+            $docente = Docente::whereHas('persona.usuario', function ($q) use ($usuarioActual) {
+                $q->where('usuario_id', $usuarioActual->id);
+            })->first();
+
+            if (!$docente) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró perfil de docente para este usuario'
+                ], 404);
+            }
+
+            $query = HorarioAsignado::where('docente_id', $docente->persona_id)
+                ->where('activo', true)
+                ->with([
+                    'grupo.materia',
+                    'bloqueHorario.dia',
+                    'bloqueHorario.horario',
+                    'periodo',
+                    'modalidad',
+                    'aula'
+                ]);
+
+            if ($modalidad) {
+                $query->where('modalidad_id', $modalidad);
+            }
+
+            if ($modalidad === 2 && $virtualAutorizado) {
+                $query->where('virtual_autorizado', true);
+            }
+
+            $horarios = $query->get();
+            $fechaActual = now();
+
+            $disponibles = $horarios->filter(function ($horario) use ($fechaActual) {
+                return $this->validarCalendario($horario, $fechaActual, true) === null;
+            })->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $disponibles,
+                'message' => 'Horarios disponibles obtenidos'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener horarios disponibles',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * CU16 - Historial de asistencia propio (Docente)
      */
     public function historialPropio(Request $request): JsonResponse

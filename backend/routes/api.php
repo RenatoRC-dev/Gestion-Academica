@@ -114,6 +114,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Asistencia - CU13, CU14, CU15, CU16, CU17, CU18
     Route::prefix('asistencias')->group(function () {
+        Route::get('/horarios-disponibles', [AsistenciaController::class, 'horariosDisponibles']);
         Route::get('/', [AsistenciaController::class, 'index']);
         Route::get('/historial-propio', [AsistenciaController::class, 'historialPropio']);
         Route::get('/historial-general', [AsistenciaController::class, 'historialGeneral']);

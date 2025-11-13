@@ -133,6 +133,20 @@ const asistenciaService = {
         }
     },
 
+    obtenerHorariosDisponibles: async (modalidad = 1, { virtualAutorizado } = {}) => {
+        const params = { modalidad };
+        if (virtualAutorizado !== undefined) {
+            params.virtual_autorizado = virtualAutorizado;
+        }
+
+        const response = await api.get('/asistencias/horarios-disponibles', { params });
+        if (!response.data.success) {
+            throw new Error(response.data.message || 'No fue posible obtener los horarios disponibles');
+        }
+
+        return Array.isArray(response.data.data) ? response.data.data : [];
+    },
+
     confirmarAsistenciaVirtual: async (horario_asignado_id) => {
         try {
             const response = await api.post('/asistencias/confirmar-virtual', { horario_asignado_id });

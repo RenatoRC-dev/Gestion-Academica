@@ -18,6 +18,21 @@ const api = axios.create({
 // Helper para construir paths con 1 sola “/”
 export const apiUrl = (path) => `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
 
+let onlineSuppressionUntil = 0;
+export const suppressOnlineWindow = (ms = 5000) => {
+    onlineSuppressionUntil = Math.max(onlineSuppressionUntil, Date.now() + ms);
+};
+
+const dispatchNetworkState = (online) => {
+    if (typeof window === 'undefined') return;
+    if (online && Date.now() < onlineSuppressionUntil) {
+        return;
+    }
+
+    const event = new CustomEvent('app-network-state', { detail: { online } });
+    window.dispatchEvent(event);
+};
+
 // ===== Interceptores =====
 // Inyectar token
 api.interceptors.request.use(
@@ -42,11 +57,17 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => {
         console.log('Respuesta:', response.status, response.config.url, response.data);
+        if (typeof navigator === 'undefined' || navigator.onLine) {
+            dispatchNetworkState(true);
+        }
         return response;
     },
     (error) => {
         const status = error.response?.status;
         console.error('Error de solicitud:', status, error.response?.data);
+        if (!error.response && error.code !== 'ECONNABORTED') {
+            dispatchNetworkState(false);
+        }
 
         // Si expira o es inválido el token
         if (status === 401 || status === 419) {

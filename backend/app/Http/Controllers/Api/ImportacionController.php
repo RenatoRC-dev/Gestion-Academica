@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Exports\PlantillaDocentesExport;
 use App\Services\ImportacionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ImportacionController extends Controller
 {
@@ -25,13 +27,10 @@ class ImportacionController extends Controller
         try {
             $request->validate([
                 'archivo' => 'required|file|mimes:xlsx,xls,csv|max:5120', // 5MB max
-                'tipo_importacion' => 'required|in:docentes,estudiantes,usuarios',
             ], [
                 'archivo.required' => 'Debe proporcionar un archivo',
                 'archivo.mimes' => 'El archivo debe ser Excel (.xlsx, .xls) o CSV',
                 'archivo.max' => 'El archivo no debe superar los 5MB',
-                'tipo_importacion.required' => 'El tipo de importación es requerido',
-                'tipo_importacion.in' => 'Tipo de importación no válido',
             ]);
 
             // Guardar temporalmente el archivo
@@ -39,20 +38,20 @@ class ImportacionController extends Controller
             $rutaTemporal = $archivo->store('temp', 'local');
             $rutaCompleta = storage_path('app/' . $rutaTemporal);
 
-            // Validar y obtener vista previa
+            try {
             $resultado = $this->importacionService->validarArchivo(
-                $request->tipo_importacion,
+                'docentes',
                 $rutaCompleta
             );
 
-            // Limpiar archivo temporal
-            Storage::disk('local')->delete($rutaTemporal);
-
-            return response()->json([
-                'success' => true,
-                'data' => $resultado,
-                'message' => 'Validación completada'
-            ], 200);
+                return response()->json([
+                    'success' => true,
+                    'data' => $resultado,
+                    'message' => 'Validación completada'
+                ], 200);
+            } finally {
+                Storage::disk('local')->delete($rutaTemporal);
+            }
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -70,13 +69,10 @@ class ImportacionController extends Controller
         try {
             $request->validate([
                 'archivo' => 'required|file|mimes:xlsx,xls,csv|max:5120',
-                'tipo_importacion' => 'required|in:docentes,estudiantes,usuarios',
             ], [
                 'archivo.required' => 'Debe proporcionar un archivo',
                 'archivo.mimes' => 'El archivo debe ser Excel (.xlsx, .xls) o CSV',
                 'archivo.max' => 'El archivo no debe superar los 5MB',
-                'tipo_importacion.required' => 'El tipo de importación es requerido',
-                'tipo_importacion.in' => 'Tipo de importación no válido',
             ]);
 
             $archivo = $request->file('archivo');
@@ -86,18 +82,21 @@ class ImportacionController extends Controller
 
             $usuarioActual = auth()->user();
 
-            // Procesar importación
+            try {
             $resultado = $this->importacionService->procesarArchivo(
-                $request->tipo_importacion,
+                'docentes',
                 $rutaCompleta,
                 $usuarioActual->id
             );
 
-            return response()->json([
-                'success' => true,
-                'data' => $resultado['log'],
-                'message' => $resultado['mensaje']
-            ], 200);
+                return response()->json([
+                    'success' => true,
+                    'data' => $resultado['log'],
+                    'message' => $resultado['mensaje']
+                ], 200);
+            } finally {
+                Storage::disk('local')->delete($rutaArchivo);
+            }
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -136,25 +135,7 @@ class ImportacionController extends Controller
     public function descargarPlantilla(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
     {
         try {
-            $tipo = $request->query('tipo', 'docentes');
-
-            if (!in_array($tipo, ['docentes', 'estudiantes', 'usuarios'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Tipo de plantilla no válido'
-                ], 400);
-            }
-
-            $rutaPlantilla = storage_path("app/plantillas/plantilla_{$tipo}.xlsx");
-
-            if (!file_exists($rutaPlantilla)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Plantilla no encontrada'
-                ], 404);
-            }
-
-            return response()->download($rutaPlantilla, "plantilla_{$tipo}.xlsx");
+            return Excel::download(new PlantillaDocentesExport(), 'plantilla_docentes.xlsx');
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
