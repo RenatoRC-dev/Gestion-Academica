@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api.js';
 import Alert from '../../components/Alert.jsx';
+import PageHeader from '../../components/PageHeader.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
 
 function GenerarEscanearQRPage() {
@@ -12,7 +13,6 @@ function GenerarEscanearQRPage() {
   const [countdown, setCountdown] = useState(null);
   const [horarios, setHorarios] = useState([]);
   const [selectedHorario, setSelectedHorario] = useState('');
-
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [scanSuccess, setScanSuccess] = useState(null);
@@ -23,16 +23,17 @@ function GenerarEscanearQRPage() {
     const load = async () => {
       try {
         const response = await api.get('/horarios');
-        const payload = response.data?.data ?? response.data;
+        const payload = response.data?.data ?? response.data ?? [];
         const rows = Array.isArray(payload?.data)
           ? payload.data
-          : Array.isArray(payload)
-            ? payload
-            : [];
+          : Array.isArray(payload?.rows)
+            ? payload.rows
+            : Array.isArray(payload)
+              ? payload
+              : [];
         setHorarios(rows);
       } catch (err) {
-        console.error('Error cargando horarios:', err);
-        setGenError(parseApiError(err).message);
+        setGenError(parseApiError(err));
       }
     };
 
@@ -40,8 +41,9 @@ function GenerarEscanearQRPage() {
   }, []);
 
   useEffect(() => {
-    if (!qrData?.data?.fecha_expiracion) return;
+    if (!qrData?.data?.fecha_expiracion) return undefined;
     const interval = setInterval(() => {
+      if (!qrData?.data?.fecha_expiracion) return;
       const expiracion = new Date(qrData.data.fecha_expiracion);
       const diff = expiracion.getTime() - Date.now();
       if (diff <= 0) {
@@ -54,8 +56,18 @@ function GenerarEscanearQRPage() {
         setCountdown(`${minutes}:${secs.toString().padStart(2, '0')}`);
       }
     }, 1000);
+
     return () => clearInterval(interval);
   }, [qrData]);
+
+  const horariosPresenciales = horarios.filter((h) => {
+    const nombre = h?.modalidad?.nombre || h?.modalidad_nombre || '';
+    const id = h?.modalidad_id;
+    return (
+      (typeof nombre === 'string' && nombre.toLowerCase().includes('presencial')) ||
+      id === 1
+    );
+  });
 
   const handleGenerate = async (e) => {
     e.preventDefault();
@@ -69,8 +81,7 @@ function GenerarEscanearQRPage() {
       });
       setQrData(response.data);
     } catch (err) {
-      console.error('Error generando QR:', err);
-      setGenError(parseApiError(err).message);
+      setGenError(parseApiError(err));
     } finally {
       setLoading(false);
     }
@@ -98,17 +109,15 @@ function GenerarEscanearQRPage() {
       setScanSuccess('Asistencia registrada exitosamente');
       setCodigoQR('');
     } catch (err) {
-      console.error('Error escaneando QR:', err);
       const status = err.response?.status;
-      const message = err.response?.data?.message;
       if (status === 404) {
         setScanError('Código QR no válido o no encontrado');
       } else if (status === 422) {
-        setScanError(message || 'Código QR expirado o ya utilizado');
+        setScanError('Código QR expirado o ya utilizado');
       } else if (status === 403) {
-        setScanError(message || 'No tienes permisos para registrar esta asistencia');
+        setScanError('No tienes permisos para registrar esta asistencia');
       } else {
-        setScanError(parseApiError(err).message);
+        setScanError(parseApiError(err));
       }
     } finally {
       setScanLoading(false);
@@ -120,42 +129,35 @@ function GenerarEscanearQRPage() {
       const text = await navigator.clipboard.readText();
       setCodigoQR(text.trim());
     } catch (err) {
-      console.error('Error al pegar:', err);
       setScanError('No se pudo leer del portapapeles');
     }
   };
 
-  const horariosPresenciales = horarios.filter((h) => {
-    const nombre = h?.modalidad?.nombre || h?.modalidad_nombre || '';
-    const id = h?.modalidad_id;
-    return (typeof nombre === 'string' && nombre.toLowerCase().includes('presencial')) || id === 1;
-  });
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Generar y Escanear Código QR</h1>
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-        >
+      <PageHeader
+        title="Generar y Escanear Código QR"
+        subtitle="Administra los códigos QR presenciales y registra la asistencia al instante"
+      >
+        <button type="button" onClick={() => navigate('/dashboard')} className="btn-secondary">
           Volver
         </button>
-      </div>
+      </PageHeader>
 
-      <div className="grid gap-6">
-        <section className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="section-card space-y-5">
           {genError && <Alert type="error" message={genError} onClose={() => setGenError(null)} />}
+
           <form onSubmit={handleGenerate} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Seleccionar Horario <span className="text-red-500">*</span>
+              <label className="text-sm font-semibold text-gray-700 block mb-1">
+                Seleccionar horario presencial <span className="text-red-500">*</span>
               </label>
               <select
                 value={selectedHorario}
                 onChange={(e) => setSelectedHorario(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="filters-full input"
               >
                 <option value="">Seleccionar horario</option>
                 {horariosPresenciales.map((h) => {
@@ -163,64 +165,64 @@ function GenerarEscanearQRPage() {
                   const dia = bloque?.dia?.nombre || '-';
                   return (
                     <option key={h.id} value={h.id}>
-                      {h.grupo?.materia?.nombre} - {h.grupo?.codigo_grupo} - {dia}
+                      {h.grupo?.materia?.nombre || 'Materia'} - {h.grupo?.codigo_grupo || 'Grupo'} - {dia}
                     </option>
                   );
                 })}
               </select>
-              <p className="text-sm text-gray-500 mt-1">Solo aparecen horarios presenciales</p>
+              <p className="text-xs text-gray-500 mt-1">Solo aparecen horarios presenciales</p>
             </div>
 
             <button
               type="submit"
               disabled={loading || !selectedHorario}
-              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary"
             >
               {loading ? 'Generando...' : 'Generar Código QR'}
             </button>
           </form>
 
           {qrData && (
-            <div className="bg-white rounded-lg shadow p-6 space-y-6">
+            <div className="filters-card space-y-5">
               <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Código QR Generado</h2>
-
                 {qrData.data?.qr_image_url && (
-                  <div className="flex justify-center mb-6">
+                  <div className="flex justify-center mb-4">
                     <img
                       src={qrData.data.qr_image_url}
                       alt="QR Code"
-                      className="w-64 h-64 border-4 border-gray-200 rounded-lg"
+                      className="w-52 h-52 border border-gray-200 rounded-lg"
                     />
                   </div>
                 )}
-
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-gray-600 mb-2">Código Hash:</p>
-                  <div className="flex items-center justify-center gap-2">
-                    <code className="text-sm font-mono bg-white px-4 py-2 rounded border border-gray-300 break-all">
-                      {qrData.data?.codigo_hash}
-                    </code>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(qrData.data?.codigo_hash ?? '')}
-                      className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-sm"
-                    >
-                      Copiar
-                    </button>
-                  </div>
+                <p className="text-sm text-gray-500 mb-1">Código Hash</p>
+                <div className="flex items-center justify-center gap-3 flex-wrap">
+                  <code className="text-xs font-mono bg-white px-3 py-1 rounded border border-gray-200 break-all">
+                    {qrData.data?.codigo_hash}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(qrData.data?.codigo_hash ?? '')}
+                    className="action-link"
+                  >
+                    Copiar
+                  </button>
                 </div>
-
-                {countdown && (
-                  <div className={`text-2xl font-bold ${countdown === 'Expirado' ? 'text-red-600' : 'text-green-600'}`}>
-                    {countdown === 'Expirado' ? 'Código Expirado' : `Expira en: ${countdown}`}
-                  </div>
-                )}
               </div>
+
+              {countdown && (
+                <div className="text-center text-base font-semibold">
+                  {countdown === 'Expirado' ? (
+                    <span className="text-red-600">Código expirado</span>
+                  ) : (
+                    <span className="text-green-600">Expira en: {countdown}</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </section>
 
-        <section className="bg-white rounded-lg shadow p-6 space-y-4">
+        <section className="section-card space-y-5">
           {(scanError || scanSuccess) && (
             <Alert
               type={scanError ? 'error' : 'success'}
@@ -228,73 +230,72 @@ function GenerarEscanearQRPage() {
               onClose={() => (scanError ? setScanError(null) : setScanSuccess(null))}
             />
           )}
+
           <form onSubmit={handleScanSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="text-sm font-semibold text-gray-700 block mb-1">
                 Código QR <span className="text-red-500">*</span>
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <input
                   type="text"
                   value={codigoQR}
                   onChange={(e) => setCodigoQR(e.target.value)}
                   placeholder="Ingresa o pega el código QR"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 input"
                 />
                 <button
                   type="button"
                   onClick={handlePaste}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  className="btn-secondary"
                 >
                   Pegar
                 </button>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Escanea el código QR o pégalo manualmente</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Escanea el código QR o pégalo manualmente.
+              </p>
             </div>
 
             <button
               type="submit"
               disabled={scanLoading || !codigoQR.trim()}
-              className="w-full px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary"
             >
-              {scanLoading ? 'Procesando...' : 'Registrar Asistencia'}
+              {scanLoading ? 'Procesando...' : 'Registrar asistencia'}
             </button>
           </form>
 
           {asistenciaData && (
-            <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
-              <h2 className="text-2xl font-bold text-green-900 mb-4 flex items-center gap-2">
-                <span>✅</span> Asistencia Confirmada
-              </h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="filters-card space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="badge-pill green">Asistencia confirmada</span>
+                <span className="text-sm text-gray-600">
+                  {new Date(asistenciaData.hora_registro).toLocaleString('es-ES')}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
                 <div>
-                  <span className="font-semibold text-gray-700">Estado:</span>
-                  <span className="ml-2 text-gray-900">{asistenciaData.estado}</span>
+                  <p className="font-semibold text-gray-800">Estado</p>
+                  <p>{asistenciaData.estado}</p>
                 </div>
-
                 <div>
-                  <span className="font-semibold text-gray-700">Hora de Registro:</span>
-                  <span className="ml-2 text-gray-900">
-                    {new Date(asistenciaData.hora_registro).toLocaleString('es-ES')}
-                  </span>
+                  <p className="font-semibold text-gray-800">Método</p>
+                  <p>{asistenciaData.metodo_registro?.nombre || 'QR'}</p>
                 </div>
-
                 {asistenciaData.horario && (
                   <>
                     <div>
-                      <span className="font-semibold text-gray-700">Materia:</span>
-                      <span className="ml-2 text-gray-900">{asistenciaData.horario.grupo?.materia?.nombre}</span>
+                      <p className="font-semibold text-gray-800">Materia</p>
+                      <p>{asistenciaData.horario.grupo?.materia?.nombre}</p>
                     </div>
-
                     <div>
-                      <span className="font-semibold text-gray-700">Grupo:</span>
-                      <span className="ml-2 text-gray-900">{asistenciaData.horario.grupo?.codigo_grupo}</span>
+                      <p className="font-semibold text-gray-800">Grupo</p>
+                      <p>{asistenciaData.horario.grupo?.codigo_grupo}</p>
                     </div>
-
                     <div>
-                      <span className="font-semibold text-gray-700">Aula:</span>
-                      <span className="ml-2 text-gray-900">{asistenciaData.horario.aula?.codigo_aula}</span>
+                      <p className="font-semibold text-gray-800">Aula</p>
+                      <p>{asistenciaData.horario.aula?.codigo_aula}</p>
                     </div>
                   </>
                 )}

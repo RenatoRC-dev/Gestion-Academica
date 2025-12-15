@@ -4,6 +4,7 @@ import Modal from '../../components/Modal.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import Alert from '../../components/Alert.jsx';
+import ActivoBadge from '../../components/ActivoBadge.jsx';
 import bloqueService from '../../services/gestion-horarios/bloqueService.js';
 import api from '../../services/api.js';
 
@@ -91,24 +92,9 @@ const columns = [
         row.horario ? `${row.horario.hora_inicio} - ${row.horario.hora_fin}` : '-',
     },
     {
-      header: 'Estado',
+      header: 'Activo',
       render: (row) => (
-        <button
-          type="button"
-          onClick={() => toggleActivo(row)}
-          aria-pressed={row.activo}
-          style={{
-            padding: '0.25rem 0.75rem',
-            borderRadius: '999px',
-            border: '1px solid #CBD5F5',
-            backgroundColor: row.activo ? '#059669' : '#DC2626',
-            color: '#fff',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          {row.activo ? 'Activo' : 'Desactivado'}
-        </button>
+        <ActivoBadge activo={row.activo} onToggle={() => toggleActivo(row)} disabled={loading} />
       ),
       align: 'center',
     },

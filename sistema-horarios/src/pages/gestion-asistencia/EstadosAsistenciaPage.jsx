@@ -11,7 +11,6 @@ const emptyForm = {
   nombre: '',
   descripcion: '',
   cuenta_como_falta: false,
-  orden: 0,
   activo: true,
 };
 
@@ -20,6 +19,7 @@ export default function EstadosAsistenciaPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [activoFilter, setActivoFilter] = useState('');
   const [page, setPage] = useState(1);
   const itemsPerPage = 15;
   const [totalResults, setTotalResults] = useState(0);
@@ -37,6 +37,7 @@ export default function EstadosAsistenciaPage() {
       const response = await estadoAsistenciaService.getAll({
         page,
         per_page: itemsPerPage,
+        activo: activoFilter !== '' ? activoFilter : undefined,
       });
       if (response.success) {
         const payload = response.data;
@@ -57,7 +58,7 @@ export default function EstadosAsistenciaPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, itemsPerPage]);
+  }, [page, itemsPerPage, activoFilter]);
 
   useEffect(() => {
     cargarEstados();
@@ -95,11 +96,6 @@ export default function EstadosAsistenciaPage() {
       align: 'center',
     },
     {
-      header: 'Orden',
-      render: (row) => row.orden ?? 0,
-      align: 'center',
-    },
-    {
       header: 'Estado',
       align: 'center',
       render: (row) => (
@@ -120,7 +116,6 @@ export default function EstadosAsistenciaPage() {
       nombre: estado.nombre || '',
       descripcion: estado.descripcion || '',
       cuenta_como_falta: estado.cuenta_como_falta !== undefined ? estado.cuenta_como_falta : false,
-      orden: estado.orden ?? 0,
       activo: estado.activo !== undefined ? estado.activo : true,
     });
     setOpenForm(true);
@@ -189,6 +184,32 @@ export default function EstadosAsistenciaPage() {
     }
   };
 
+  const toolbar = (
+    <div className="filters-card">
+      <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="text"
+          className="filters-full input"
+          placeholder="Buscar por nombre o descripción"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select
+          className="filters-full input max-w-[200px]"
+          value={activoFilter}
+          onChange={(e) => {
+            setActivoFilter(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">Todos los estados</option>
+          <option value="true">Activos</option>
+          <option value="false">Inactivos</option>
+        </select>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -214,6 +235,7 @@ export default function EstadosAsistenciaPage() {
         onPageChange={setPage}
         searchTerm={search}
         onSearchChange={setSearch}
+        toolbar={toolbar}
         emptyMessage="Aún no hay estados registrados"
         actions={(row) => (
           <>
@@ -263,16 +285,6 @@ export default function EstadosAsistenciaPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, descripcion: e.target.value }))}
                   placeholder="Descripción breve"
                   maxLength={255}
-                />
-              </div>
-              <div className="form-field">
-                <label>Orden</label>
-                <input
-                  type="number"
-                  className="input"
-                  value={form.orden}
-                  onChange={(e) => setForm((prev) => ({ ...prev, orden: parseInt(e.target.value) || 0 }))}
-                  min={0}
                 />
               </div>
               <div className="form-field">

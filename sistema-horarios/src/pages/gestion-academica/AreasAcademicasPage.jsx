@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import PageHeader from '../../components/PageHeader.jsx';
 import areasAcademicasService from '../../services/gestion-academica/areasAcademicasService.js';
 import DataTable from '../../components/DataTable.jsx';
 import Alert from '../../components/Alert.jsx';
 import Modal from '../../components/Modal.jsx';
 import FieldErrorList from '../../components/FieldErrorList.jsx';
+import ActivoBadge from '../../components/ActivoBadge.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
 
 const emptyForm = {
@@ -38,8 +40,7 @@ function AreasAcademicasPage() {
     setError(null);
 
     try {
-      const activoParam =
-        filters.activo === '' ? undefined : filters.activo === 'true';
+      const activoParam = filters.activo === '' ? undefined : filters.activo === 'true';
       const { rows, meta } = await areasAcademicasService.listar({
         page: currentPage,
         per_page: perPage,
@@ -67,6 +68,7 @@ function AreasAcademicasPage() {
     setValidationErrors({});
     setModalOpen(true);
     setSuccess(null);
+    setError(null);
   };
 
   const handleSubmit = async (event) => {
@@ -109,11 +111,17 @@ function AreasAcademicasPage() {
   };
 
   const handleToggleActivo = async (area) => {
+    if (!area) return;
+    setLoading(true);
+    setError(null);
     try {
       await areasAcademicasService.actualizar(area.id, { activo: !area.activo });
-      fetchAreas();
+      setSuccess(`Área académica ${area.activo ? 'desactivada' : 'activada'} correctamente`);
+      await fetchAreas();
     } catch (err) {
       setError(parseApiError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -130,55 +138,57 @@ function AreasAcademicasPage() {
     {
       header: 'Activo',
       render: (row) => (
-        <span className={`px-2 py-1 text-xs font-medium rounded-full ${row.activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-          {row.activo ? 'Sí' : 'No'}
-        </span>
+        <ActivoBadge activo={row.activo} onToggle={() => handleToggleActivo(row)} disabled={loading} />
       ),
+      align: 'center',
     },
   ];
 
   const toolbar = (
-    <div className="flex flex-wrap gap-3 py-2">
-      <input
-        className="px-3 py-2 border border-gray-300 rounded-lg flex-1 min-w-[220px]"
-        placeholder="Buscar por nombre"
-        value={filters.search}
-        onChange={(e) => {
-          setFilters((prev) => ({ ...prev, search: e.target.value }));
-          setCurrentPage(1);
-        }}
-      />
-      <select
-        className="px-3 py-2 border border-gray-300 rounded-lg"
-        value={filters.activo}
-        onChange={(e) => {
-          setFilters((prev) => ({ ...prev, activo: e.target.value }));
-          setCurrentPage(1);
-        }}
-      >
-        <option value="">Todos los estados</option>
-        <option value="true">Activas</option>
-        <option value="false">Inactivas</option>
-      </select>
+    <div className="filters-card space-y-3">
+      <div className="flex flex-wrap gap-3">
+        <input
+          className="filters-full input"
+          placeholder="Buscar por nombre"
+          value={filters.search}
+          onChange={(e) => {
+            setFilters((prev) => ({ ...prev, search: e.target.value }));
+            setCurrentPage(1);
+          }}
+        />
+        <select
+          className="filters-full input"
+          value={filters.activo}
+          onChange={(e) => {
+            setFilters((prev) => ({ ...prev, activo: e.target.value }));
+            setCurrentPage(1);
+          }}
+        >
+          <option value="">Todos los estados</option>
+          <option value="true">Activas</option>
+          <option value="false">Inactivas</option>
+        </select>
+      </div>
     </div>
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Áreas Académicas</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Registra y gestiona las áreas asociadas a los docentes
-          </p>
-        </div>
-        <button className="btn-primary" onClick={() => handleOpenModal()}>
+      <PageHeader
+        title="Áreas académicas"
+        subtitle="Registra y gestiona las áreas asociadas a los docentes"
+      >
+        <button type="button" className="btn-primary" onClick={() => handleOpenModal()}>
           + Nueva área
         </button>
-      </div>
+      </PageHeader>
 
-      {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
-      {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} />}
+      {(error || success) && (
+        <div className="space-y-2">
+          {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
+          {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} />}
+        </div>
+      )}
 
       <DataTable
         columns={columns}
@@ -198,21 +208,25 @@ function AreasAcademicasPage() {
         onSearchChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
         emptyMessage="No hay áreas académicas registradas"
         actions={(row) => (
-          <div className="flex gap-2">
-            <button className="text-blue-600 font-medium text-sm" onClick={() => handleOpenModal(row)}>
+          <div className="flex gap-2 flex-wrap">
+            <button className="action-link" onClick={() => handleOpenModal(row)}>
               Editar
             </button>
-            <button className="text-indigo-600 font-medium text-sm" onClick={() => handleToggleActivo(row)}>
+            <button className="action-link" onClick={() => handleToggleActivo(row)}>
               {row.activo ? 'Desactivar' : 'Activar'}
             </button>
-            <button className="text-red-600 font-medium text-sm" onClick={() => handleDelete(row)}>
+            <button className="action-link red" onClick={() => handleDelete(row)}>
               Eliminar
             </button>
           </div>
         )}
       />
 
-      <Modal open={modalOpen} title={isEditing ? 'Editar área académica' : 'Nueva área académica'} onClose={() => setModalOpen(false)}>
+      <Modal
+        open={modalOpen}
+        title={isEditing ? 'Editar área académica' : 'Nueva área académica'}
+        onClose={() => setModalOpen(false)}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Nombre</label>
@@ -252,11 +266,11 @@ function AreasAcademicasPage() {
           <FieldErrorList errors={validationErrors.activo} />
 
           <div className="flex justify-end gap-3">
-            <button type="button" className="px-4 py-2 rounded-md border border-gray-300" onClick={() => setModalOpen(false)}>
+            <button type="button" className="btn-secondary" onClick={() => setModalOpen(false)}>
               Cancelar
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? 'Guardando…' : 'Guardar'}
+              {saving ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </form>

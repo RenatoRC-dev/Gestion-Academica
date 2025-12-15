@@ -268,6 +268,7 @@ export default function AppShell({ children }) {
                 { to: '/administrativos', icon: FaUserTie, label: 'Administrativos' },
                 { to: '/materias', icon: FaBook, label: 'Materias' },
                 { to: '/aulas', icon: FaBuilding, label: 'Aulas' },
+                { to: '/tipos-aula', icon: FaSchool, label: 'Tipos de aula' },
                 { to: '/grupos', icon: FaUsers, label: 'Grupos' },
                 { to: '/bloques', icon: FaCalendarAlt, label: 'Bloques horario' },
                 { to: '/periodos', icon: FaCalendarAlt, label: 'Períodos' },

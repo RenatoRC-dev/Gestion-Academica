@@ -6,6 +6,7 @@ import Modal from '../../components/Modal.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import { useToast } from '../../components/ToastProvider.jsx';
+import ActivoBadge from '../../components/ActivoBadge.jsx';
 import {
   fetchPeriodos,
   createPeriodo,
@@ -63,12 +64,11 @@ export default function PeriodosPage() {
     { header: 'Inicio', render: (row) => formatDate(row.fecha_inicio) },
     { header: 'Fin', render: (row) => formatDate(row.fecha_fin) },
     {
-      header: 'Estado',
+      header: 'Activo',
       render: (row) => (
-        <span className={row.activo ? 'text-green-600 font-semibold' : 'text-gray-500'}>
-          {row.activo ? 'Activo' : 'Inactivo'}
-        </span>
+        <ActivoBadge activo={row.activo} onToggle={() => togglePeriodoActivo(row)} disabled={updating} />
       ),
+      align: 'center',
     },
   ];
 
@@ -143,6 +143,14 @@ export default function PeriodosPage() {
         setOpenForm(false);
         setForm(emptyForm);
       }
+    }
+  };
+
+  const togglePeriodoActivo = async (row) => {
+    if (!row) return;
+    const res = await dispatch(updatePeriodo({ id: row.id, changes: { activo: !row.activo } }));
+    if (!res.error) {
+      toast.push(`Periodo ${row.activo ? 'desactivado' : 'activado'}`, 'success');
     }
   };
 

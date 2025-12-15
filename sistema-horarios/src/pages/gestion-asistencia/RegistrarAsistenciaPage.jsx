@@ -159,30 +159,116 @@ export default function RegistrarAsistenciaPage() {
     },
     {
       header: 'Estado',
-      render: (row) => {
-        const estado = row.estado;
-        return (
-          <span
-            style={{
-              padding: '0.25rem 0.75rem',
-              borderRadius: '999px',
-              backgroundColor: estado?.color || '#10B981',
-              color: '#fff',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-            }}
-          >
-            {estado?.nombre || 'N/A'}
-          </span>
-        );
-      },
+      render: (row) => (
+        <span className={`badge-pill ${row.estado?.color ? 'green' : 'gray'}`}>
+          {row.estado?.nombre || 'N/A'}
+        </span>
+      ),
       align: 'center',
     },
     {
       header: 'Método',
-      render: (row) => row.metodo_registro?.nombre || '-',
+      render: (row) => (
+        <span className="badge-pill gray">
+          {row.metodo_registro?.nombre || '—'}
+        </span>
+      ),
+      align: 'center',
     },
   ];
+  const filtersToolbar = (
+    <div className="filters-card space-y-4">
+      <div className="filters-grid">
+        <div>
+          <label className="filter-label">Periodo</label>
+          <select
+            className="filters-full input"
+            value={filters.periodo_id}
+            onChange={(e) => handleFilterChange('periodo_id', e.target.value)}
+          >
+            <option value="">Todos</option>
+            {periodos.map((p) => (
+              <option key={p.id} value={p.id}>{p.nombre}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="filter-label">Grupo</label>
+          <select
+            className="filters-full input"
+            value={filters.grupo_id}
+            onChange={(e) => handleFilterChange('grupo_id', e.target.value)}
+          >
+            <option value="">Todos</option>
+            {grupos.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.codigo_grupo || g.nombre || `Grupo ${g.id}`}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="filter-label">Materia</label>
+          <select
+            className="filters-full input"
+            value={filters.materia_id}
+            onChange={(e) => handleFilterChange('materia_id', e.target.value)}
+          >
+            <option value="">Todas</option>
+            {materias.map((m) => (
+              <option key={m.id} value={m.id}>{m.nombre}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="filter-label">Docente</label>
+          <select
+            className="filters-full input"
+            value={filters.docente_id}
+            onChange={(e) => handleFilterChange('docente_id', e.target.value)}
+          >
+            <option value="">Todos</option>
+            {docentes.map((d) => (
+              <option key={d.persona_id} value={d.persona_id}>
+                {d.persona?.nombre_completo || '-'}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="filter-label">Estado</label>
+          <select
+            className="filters-full input"
+            value={filters.estado_id}
+            onChange={(e) => handleFilterChange('estado_id', e.target.value)}
+          >
+            <option value="">Todos</option>
+            {estados.map((e) => (
+              <option key={e.id} value={e.id}>{e.nombre}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="filter-label">Fecha inicio</label>
+          <input
+            type="date"
+            className="filters-full input"
+            value={filters.fecha_inicio}
+            onChange={(e) => handleFilterChange('fecha_inicio', e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="filter-label">Fecha fin</label>
+          <input
+            type="date"
+            className="filters-full input"
+            value={filters.fecha_fin}
+            onChange={(e) => handleFilterChange('fecha_fin', e.target.value)}
+          />
+        </div>
+      </div>
+    </div>
+  );
 
   const openCreate = () => {
     setEditing(null);
@@ -282,110 +368,6 @@ export default function RegistrarAsistenciaPage() {
       )}
 
       {/* Filtros */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Filtros de búsqueda</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="text-xs uppercase tracking-wide text-gray-500">Periodo</label>
-            <select
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-              value={filters.periodo_id}
-              onChange={(e) => handleFilterChange('periodo_id', e.target.value)}
-            >
-              <option value="">Todos</option>
-              {periodos.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-wide text-gray-500">Grupo</label>
-            <select
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-              value={filters.grupo_id}
-              onChange={(e) => handleFilterChange('grupo_id', e.target.value)}
-            >
-              <option value="">Todos</option>
-              {grupos.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.codigo_grupo || g.nombre || 'Grupo'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-wide text-gray-500">Materia</label>
-            <select
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-              value={filters.materia_id}
-              onChange={(e) => handleFilterChange('materia_id', e.target.value)}
-            >
-              <option value="">Todas</option>
-              {materias.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-wide text-gray-500">Docente</label>
-            <select
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-              value={filters.docente_id}
-              onChange={(e) => handleFilterChange('docente_id', e.target.value)}
-            >
-              <option value="">Todos</option>
-              {docentes.map((d) => (
-                <option key={d.persona_id} value={d.persona_id}>
-                    {d.persona?.nombre_completo || '-'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-wide text-gray-500">Estado</label>
-            <select
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-              value={filters.estado_id}
-              onChange={(e) => handleFilterChange('estado_id', e.target.value)}
-            >
-              <option value="">Todos</option>
-              {estados.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-wide text-gray-500">Fecha inicio</label>
-            <input
-              type="date"
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-              value={filters.fecha_inicio}
-              onChange={(e) => handleFilterChange('fecha_inicio', e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-wide text-gray-500">Fecha fin</label>
-            <input
-              type="date"
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-              value={filters.fecha_fin}
-              onChange={(e) => handleFilterChange('fecha_fin', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
 
       {/* Tabla */}
       <DataTable
@@ -397,6 +379,7 @@ export default function RegistrarAsistenciaPage() {
         perPage={itemsPerPage}
         total={totalResults}
         onPageChange={setPage}
+        toolbar={filtersToolbar}
         emptyMessage="No hay asistencias registradas con estos filtros"
         actions={(row) => (
           <>

@@ -31,51 +31,33 @@ const actionLabels = {
   DELETE: 'Eliminación',
 };
 
-const parseJson = (value) => {
-  if (!value) return null;
-  if (typeof value === 'object') return value;
-  try {
-    return JSON.parse(value);
-  } catch {
+const formatChanges = (row) => {
+  if (!Array.isArray(row.cambios) || !row.cambios.length) {
     return null;
   }
-};
-
-const buildDiff = (prev, next) => {
-  if (!prev && !next) return null;
-  const keys = new Set([...(prev ? Object.keys(prev) : []), ...(next ? Object.keys(next) : [])]);
-  const changes = [];
-  keys.forEach((key) => {
-    const before = prev ? prev[key] : undefined;
-    const after = next ? next[key] : undefined;
-    if (JSON.stringify(before) === JSON.stringify(after)) return;
-    changes.push(`${key}: ${before ?? '-'} → ${after ?? '-'}`);
-  });
-  return changes.length ? changes.join('; ') : null;
+  return (
+    <ul className="text-sm space-y-1 list-disc list-inside text-gray-700">
+      {row.cambios.map((item) => (
+        <li key={`${item.campo}-${item.antes}-${item.despues}`}>
+          <span className="font-semibold">{item.campo}</span>: {item.antes} → {item.despues}
+        </li>
+      ))}
+    </ul>
+  );
 };
 
 const formatDetail = (row) => {
-  const lines = [];
-  if (row.tabla_afectada) {
-    lines.push(`Tabla: ${row.tabla_afectada}${row.registro_id ? ` (ID ${row.registro_id})` : ''}`);
-  }
-  if (row.descripcion) {
-    lines.push(row.descripcion);
-  }
-  const prev = parseJson(row.datos_anteriores);
-  const next = parseJson(row.datos_nuevos);
-  const diff = buildDiff(prev, next);
-  if (diff) {
-    lines.push(diff);
-  }
-  if (!lines.length) {
-    return '-';
-  }
+  const hasChanges = Array.isArray(row.cambios) && row.cambios.length > 0;
   return (
-    <div className="text-sm leading-snug space-y-1">
-      {lines.map((text, index) => (
-        <div key={`${text}-${index}`}>{text}</div>
-      ))}
+    <div className="space-y-1 text-sm text-gray-700">
+      {row.descripcion && (
+        <p className="text-sm font-semibold text-gray-800">{row.descripcion}</p>
+      )}
+      {hasChanges ? (
+        formatChanges(row)
+      ) : (
+        <p className="text-xs text-gray-500">Sin detalles adicionales</p>
+      )}
     </div>
   );
 };

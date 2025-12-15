@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Seguridad;
 use App\Http\Controllers\Controller;
 use App\Models\Usuario;
 use App\Models\Rol;
+use App\Models\Docente;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +57,10 @@ class UsuarioRolController extends Controller
 
             $usuario->roles()->attach($rol->id);
 
+            if ($rol->nombre === 'docente') {
+                $this->ensureDocenteRecord($usuario);
+            }
+
             DB::commit();
 
             return response()->json([
@@ -100,6 +105,10 @@ class UsuarioRolController extends Controller
 
             $usuario->roles()->detach($rol->id);
 
+            if ($rol->nombre === 'docente') {
+                $this->removeDocenteRecord($usuario);
+            }
+
             DB::commit();
 
             return response()->json([
@@ -132,17 +141,22 @@ class UsuarioRolController extends Controller
             $usuario->roles()->sync($validated['rol_ids']);
 
             $rolesActuales = $usuario->roles()->get();
+            if ($rolesActuales->contains('nombre', 'docente')) {
+                $this->ensureDocenteRecord($usuario);
+            } else {
+                $this->removeDocenteRecord($usuario);
+            }
 
             DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'usuario_id' => $usuario->id,
-                    'roles' => $rolesActuales
-                ],
-                'message' => 'Roles sincronizados exitosamente'
-            ], 200);
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'usuario_id' => $usuario->id,
+                'roles' => $rolesActuales
+            ],
+            'message' => 'Roles sincronizados exitosamente'
+        ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -151,5 +165,31 @@ class UsuarioRolController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    private function ensureDocenteRecord(Usuario $usuario): void
+    {
+        $persona = $usuario->persona;
+        if (!$persona) {
+            return;
+        }
+        if (Docente::where('persona_id', $persona->id)->exists()) {
+            return;
+        }
+        Docente::create([
+            'persona_id' => $persona->id,
+            'codigo_docente' => sprintf('DOC-%04d', $persona->id),
+            'created_by' => $usuario->id,
+            'updated_by' => $usuario->id,
+        ]);
+    }
+
+    private function removeDocenteRecord(Usuario $usuario): void
+    {
+        $persona = $usuario->persona;
+        if (!$persona) {
+            return;
+        }
+        Docente::where('persona_id', $persona->id)->delete();
     }
 }

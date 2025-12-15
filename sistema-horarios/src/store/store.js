@@ -7,6 +7,7 @@ import aulasReducer from './slices/gestion-academica/aulasSlice.js';
 import gruposReducer from './slices/gestion-academica/gruposSlice.js';
 import periodosReducer from './slices/gestion-academica/periodosSlice.js';
 import bloquesReducer from './slices/gestion-academica/bloquesSlice.js';
+import tipoAulaReducer from './slices/gestion-academica/tipoAulaSlice.js';
 import horariosReducer from './slices/gestion-horarios/horariosSlice.js';
 import asistenciaReducer from './slices/gestion-asistencia/asistenciaSlice.js';
 import usuariosReducer from './slices/gestion-usuarios/usuariosSlice.js';
@@ -23,6 +24,7 @@ const store = configureStore({
         grupos: gruposReducer,
         periodos: periodosReducer,
         bloques: bloquesReducer,
+        tipoAula: tipoAulaReducer,
         horarios: horariosReducer,
         asistencia: asistenciaReducer,
         usuarios: usuariosReducer,

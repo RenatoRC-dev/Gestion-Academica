@@ -30,8 +30,7 @@ class EstadoAsistenciaController extends Controller
                 $query->where('activo', $activo);
             }
 
-            // Ordenar por orden ascendente
-            $estados = $query->orderBy('orden', 'asc')->paginate($perPage);
+            $estados = $query->orderBy('nombre', 'asc')->paginate($perPage);
 
             return response()->json([
                 'success' => true,
@@ -77,7 +76,6 @@ class EstadoAsistenciaController extends Controller
                 'nombre' => 'required|string|max:50|unique:estado_asistencia,nombre',
                 'descripcion' => 'nullable|string|max:255',
                 'cuenta_como_falta' => 'nullable|boolean',
-                'orden' => 'nullable|integer|min:0',
                 'activo' => 'nullable|boolean',
             ], [
                 'nombre.required' => 'El nombre es requerido',
@@ -87,13 +85,6 @@ class EstadoAsistenciaController extends Controller
             ]);
 
             DB::beginTransaction();
-
-            // Si no se especifica orden, usar el siguiente disponible
-            if (!isset($validated['orden'])) {
-                $maxOrden = EstadoAsistencia::max('orden') ?? 0;
-                $validated['orden'] = $maxOrden + 1;
-            }
-
             $estado = EstadoAsistencia::create($validated);
 
             DB::commit();
@@ -130,7 +121,6 @@ class EstadoAsistenciaController extends Controller
                 'nombre' => 'sometimes|required|string|max:50|unique:estado_asistencia,nombre,' . $estadoAsistencia->id,
                 'descripcion' => 'nullable|string|max:255',
                 'cuenta_como_falta' => 'sometimes|required|boolean',
-                'orden' => 'sometimes|required|integer|min:0',
                 'activo' => 'sometimes|required',
             ]);
 
@@ -155,7 +145,6 @@ class EstadoAsistenciaController extends Controller
                 'descripcion',
                 'color',
                 'cuenta_como_falta',
-                'orden',
                 'activo'
             ]));
 

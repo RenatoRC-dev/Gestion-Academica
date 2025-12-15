@@ -25,6 +25,7 @@ import BloquesPage from './pages/gestion-academica/BloquesPage.jsx';
 import AdministrativosPage from './pages/gestion-academica/AdministrativosPage.jsx';
 import AreasAcademicasPage from './pages/gestion-academica/AreasAcademicasPage.jsx';
 import AreasAdministrativasPage from './pages/gestion-academica/AreasAdministrativasPage.jsx';
+import TiposAulaPage from './pages/gestion-academica/TiposAulaPage.jsx';
 
 // Páginas de Horarios
 import VisualizarHorarioPage from './pages/gestion-horarios/VisualizarHorarioPage.jsx';
@@ -108,6 +109,7 @@ function AuthContent() {
                         <Route path="/periodos" element={<PeriodosPage />} />
                         <Route path="/docentes" element={<DocentesPage />} />
                         <Route path="/aulas" element={<AulasPage />} />
+                        <Route path="/tipos-aula" element={<TiposAulaPage />} />
                         <Route path="/materias" element={<MateriasPage />} />
                         <Route path="/grupos" element={<GruposPage />} />
                         <Route path="/bloques" element={<BloquesPage />} />

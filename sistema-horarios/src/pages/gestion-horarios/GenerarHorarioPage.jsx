@@ -2,7 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api.js';
 import Alert from '../../components/Alert.jsx';
+import PageHeader from '../../components/PageHeader.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
+
+const emptyRestriccion = { docente_id: '', pisos: '' };
+const emptyPreferencia = { docente_id: '', grupo_id: '', pattern: '' };
 
 function GenerarHorarioPage() {
   const navigate = useNavigate();
@@ -11,57 +15,61 @@ function GenerarHorarioPage() {
   const [periodoId, setPeriodoId] = useState('');
   const [docentes, setDocentes] = useState([]);
   const [grupos, setGrupos] = useState([]);
-  const [restricciones, setRestricciones] = useState([{ docente_id: '', pisos: '' }]);
-  const [preferencias, setPreferencias] = useState([{ docente_id: '', grupo_id: '', pattern: '' }]);
+  const [restricciones, setRestricciones] = useState([emptyRestriccion]);
+  const [preferencias, setPreferencias] = useState([emptyPreferencia]);
   const [resultado, setResultado] = useState(null);
+  const [conflictosDetalle, setConflictosDetalle] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [conflictosDetalle, setConflictosDetalle] = useState([]);
 
   const esPreferenciaCompleta = (pref) => Boolean(pref.docente_id && pref.grupo_id && pref.pattern);
   const preferenciasCompletas = preferencias.filter(esPreferenciaCompleta);
-  const hayPreferenciaEnProceso = preferencias.some((pref) => pref.docente_id || pref.grupo_id);
+  const hayPreferenciaEnProceso = preferencias.some((pref) => pref.docente_id || pref.grupo_id || pref.pattern);
   const ultimaPreferenciaValida = preferencias.length === 0 || esPreferenciaCompleta(preferencias[preferencias.length - 1]);
-  const puedeGenerarPreferencias =
-    preferenciasCompletas.length > 0 || !hayPreferenciaEnProceso;
+  const puedeGenerarPreferencias = preferenciasCompletas.length > 0 || !hayPreferenciaEnProceso;
 
   useEffect(() => {
+    const toRows = (resp) => {
+      const payload = resp?.data?.data ?? resp?.data ?? [];
+      if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload?.rows)) return payload.rows;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    };
+
     const load = async () => {
       try {
-        const periodosRes = await api.get('/periodos', { params: { activo: true } });
-        const p = periodosRes?.data?.data;
-        const rows = Array.isArray(p?.data) ? p.data : Array.isArray(p) ? p : [];
-        setPeriodos(rows);
+        const [periodosRes, docentesRes, gruposRes] = await Promise.all([
+          api.get('/periodos', { params: { activo: true } }),
+          api.get('/docentes', { params: { per_page: 100 } }),
+          api.get('/grupos', { params: { per_page: 100 } }),
+        ]);
 
-        const docentesRes = await api.get('/docentes', { params: { per_page: 100 } });
-        const dPayload = docentesRes?.data?.data;
-        const dRows = Array.isArray(dPayload?.data) ? dPayload.data : Array.isArray(dPayload) ? dPayload : [];
-        setDocentes(dRows);
-        const gruposRes = await api.get('/grupos', { params: { per_page: 100 } });
-        const gPayload = gruposRes?.data?.data;
-        const gRows = Array.isArray(gPayload?.data) ? gPayload.data : Array.isArray(gPayload) ? gPayload : [];
-        setGrupos(gRows);
+        setPeriodos(toRows(periodosRes));
+        setDocentes(toRows(docentesRes));
+        setGrupos(toRows(gruposRes));
       } catch (err) {
-      setError(parseApiError(err).message);
+        setError(parseApiError(err));
       }
     };
+
     load();
   }, []);
 
   const handleAddRestriccion = () => {
-        setRestricciones([...restricciones, { docente_id: '', pisos: '' }]);
+    setRestricciones((prev) => [...prev, emptyRestriccion]);
   };
+
   const handleAddPreferencia = () => {
-    if (!ultimaPreferenciaValida) {
-      return;
-    }
-    setPreferencias([...preferencias, { docente_id: '', grupo_id: '', pattern: '' }]);
+    if (!ultimaPreferenciaValida) return;
+    setPreferencias((prev) => [...prev, emptyPreferencia]);
   };
+
   const handlePreferenciaChange = (index, field, value) => {
-    const normalizedValue = field === 'pattern' ? value.toUpperCase() : value;
+    const normalized = field === 'pattern' ? (value || '') : value;
     setPreferencias((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, [field]: normalizedValue } : item))
+      prev.map((item, idx) => (idx === index ? { ...item, [field]: normalized } : item))
     );
   };
 
@@ -71,30 +79,30 @@ function GenerarHorarioPage() {
     );
   };
 
-  const handleGenerar = async (e) => {
-    e.preventDefault();
+  const handleGenerar = async (event) => {
+    event.preventDefault();
     setLoading(true);
     setError(null);
     setSuccess(null);
-    setResultado(null);
     setConflictosDetalle([]);
+    setResultado(null);
 
     try {
       const payload = {
-        periodo_id: parseInt(periodoId),
+        periodo_id: Number(periodoId),
         restricciones_docentes: restricciones
           .filter((r) => r.docente_id)
           .map((r) => ({
-            docente_id: parseInt(r.docente_id),
+            docente_id: Number(r.docente_id),
             pisos: r.pisos
               .split(',')
-              .map((v) => parseInt(v.trim()))
+              .map((value) => Number(value.trim()))
               .filter((num) => !Number.isNaN(num)),
           })),
-        preferencias: preferenciasCompletas.map((p) => ({
-          docente_id: parseInt(p.docente_id, 10),
-          grupo_id: parseInt(p.grupo_id, 10),
-          pattern: (p.pattern || 'LMV').toUpperCase(),
+        preferencias: preferenciasCompletas.map((pref) => ({
+          docente_id: Number(pref.docente_id),
+          grupo_id: Number(pref.grupo_id),
+          pattern: (pref.pattern || 'LMV').toUpperCase(),
         })),
       };
 
@@ -104,9 +112,8 @@ function GenerarHorarioPage() {
       setSuccess('Horarios generados exitosamente');
     } catch (err) {
       const parsed = parseApiError(err);
-      console.error('Conflictos al generar horario', parsed.conflictos);
       setConflictosDetalle(Array.isArray(parsed.conflictos) ? parsed.conflictos : []);
-      setError(parsed.message);
+      setError(parsed.message || 'No se pudo generar el horario');
     } finally {
       setLoading(false);
     }
@@ -114,9 +121,9 @@ function GenerarHorarioPage() {
 
   const handleModoChange = (value) => {
     setModo(value);
-    setResultado(null);
     setError(null);
     setSuccess(null);
+    setResultado(null);
     setConflictosDetalle([]);
   };
 
@@ -131,22 +138,25 @@ function GenerarHorarioPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Generar Horario</h1>
+      <PageHeader
+        title="Generar Horario"
+        subtitle="Define preferencias, restricciones y genera los horarios automáticos"
+      >
         <button
+          type="button"
           onClick={() => navigate('/horarios')}
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className="btn-secondary"
         >
           Volver
         </button>
-      </div>
+      </PageHeader>
 
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
       {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} />}
       {conflictosDetalle.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800 space-y-1">
-          <p className="font-semibold">Detalles del conflicto:</p>
-          <ul className="list-disc pl-5 space-y-1">
+        <div className="section-card">
+          <p className="font-semibold text-gray-800">Conflictos detectados</p>
+          <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
             {conflictosDetalle.map((item, index) => (
               <li key={`conf-${index}`}>
                 {item.grupo_id ? `Grupo ${item.grupo_id}: ` : ''}
@@ -160,191 +170,212 @@ function GenerarHorarioPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        <div className="flex gap-3">
-          <button
-            type="button"
-            className={`px-4 py-2 rounded-lg ${modo === 'automatico' ? 'bg-blue-600 text-white' : 'border border-gray-300'}`}
-            onClick={() => handleModoChange('automatico')}
-          >
-            Automático
-          </button>
-          <button
-            type="button"
-            className={`px-4 py-2 rounded-lg ${modo === 'manual' ? 'bg-blue-600 text-white' : 'border border-gray-300'}`}
-            onClick={() => handleModoChange('manual')}
-          >
-            Manual
-          </button>
+      <div className="section-card space-y-5">
+        <div className="flex flex-wrap gap-3">
+          {['automatico', 'manual'].map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => handleModoChange(option)}
+              className={`px-4 py-2 rounded-full font-semibold transition ${
+                modo === option
+                  ? 'bg-blue-600 text-white'
+                  : 'border border-gray-300 text-gray-700 hover:border-blue-400'
+              }`}
+            >
+              {option === 'automatico' ? 'Automático' : 'Manual'}
+            </button>
+          ))}
         </div>
 
         {modo === 'automatico' && (
-          <form onSubmit={handleGenerar} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Período <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={periodoId}
-                onChange={(e) => setPeriodoId(e.target.value)}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Seleccionar período</option>
-                {periodos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre}
-                  </option>
-                ))}
-              </select>
-              <p className="text-sm text-gray-500 mt-1">
-                Se generarán horarios automáticos para el período seleccionado.
-              </p>
+          <form onSubmit={handleGenerar} className="space-y-5">
+            <div className="filters-card space-y-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Período <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={periodoId}
+                  onChange={(e) => setPeriodoId(e.target.value)}
+                  required
+                  className="filters-full input"
+                >
+                  <option value="">Seleccionar período</option>
+                  {periodos.map((periodo) => (
+                    <option key={periodo.id} value={periodo.id}>
+                      {periodo.nombre}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Se generarán horarios automáticos para el período seleccionado.
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="filters-card space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-700">Restricciones docentes (pisos no deseados)</p>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 mb-0.5">Restricciones docentes</p>
+                  <p className="text-xs text-gray-500">Pisos no deseados</p>
+                </div>
                 <button
                   type="button"
-                  className="text-blue-600 text-sm"
                   onClick={handleAddRestriccion}
+                  className="action-link"
                 >
                   + Agregar restricción
                 </button>
-            </div>
-            {restricciones.map((rest, index) => (
-                <div key={`rest-${index}`} className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs uppercase tracking-wide text-gray-500">Docente</label>
-                    <select
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      value={rest.docente_id}
-                      onChange={(e) => handleRestriccionChange(index, 'docente_id', e.target.value)}
-                    >
-                      <option value="">Seleccionar docente (opcional)</option>
-                      {docentes.map((doc) => (
-                        <option key={doc.persona_id} value={doc.persona_id}>
-                          {doc.persona?.nombre_completo || `Docente ${doc.persona_id}`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs uppercase tracking-wide text-gray-500">Pisos vetados</label>
-                    <input
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      value={rest.pisos}
-                      placeholder="Ej: 4,5"
-                      onChange={(e) => handleRestriccionChange(index, 'pisos', e.target.value)}
-                    />
-                    <p className="text-xs text-gray-400 mt-1">
-                      Separa por comas, p. ej. 4,5.
-                    </p>
-                  </div>
               </div>
-            ))}
-          </div>
-          <div className="space-y-3 border-t pt-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700">Preferencias (docente + grupo)</p>
+
+              <div className="space-y-3">
+                {restricciones.map((rest, index) => (
+                  <div key={`rest-${index}`} className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="text-xs uppercase text-gray-500">Docente</label>
+                      <select
+                        className="input"
+                        value={rest.docente_id}
+                        onChange={(e) => handleRestriccionChange(index, 'docente_id', e.target.value)}
+                      >
+                        <option value="">Seleccionar docente (opcional)</option>
+                        {docentes.map((doc) => {
+                          const docId = doc.persona_id ?? doc.id;
+                          return (
+                            <option key={docId} value={docId}>
+                              {doc.persona?.nombre_completo || doc.nombre_completo || `Docente ${docId}`}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase text-gray-500">Pisos vetados</label>
+                      <input
+                        className="input"
+                        value={rest.pisos}
+                        placeholder="Ej: 4,5"
+                        onChange={(e) => handleRestriccionChange(index, 'pisos', e.target.value)}
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Separa por comas, p. ej. 4,5.
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="filters-card space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 mb-0.5">Preferencias</p>
+                  <p className="text-xs text-gray-500">Docente + Grupo + Patrón</p>
+                </div>
                 <button
                   type="button"
-                  className={`text-blue-600 text-sm ${!ultimaPreferenciaValida ? 'cursor-not-allowed opacity-50' : ''}`}
                   onClick={handleAddPreferencia}
+                  className={`action-link ${!ultimaPreferenciaValida ? 'opacity-60 cursor-not-allowed' : ''}`}
                   disabled={!ultimaPreferenciaValida}
                 >
                   + Agregar preferencia
                 </button>
-            </div>
-            {preferencias.map((pref, index) => (
-              <div key={`pref-${index}`} className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs uppercase tracking-wide text-gray-500">Docente</label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    value={pref.docente_id}
-                    onChange={(e) => handlePreferenciaChange(index, 'docente_id', e.target.value)}
-                  >
-                    <option value="">Seleccionar docente</option>
-                    {docentes.map((doc) => (
-                      <option key={(doc.id ?? doc.persona_id)} value={(doc.id ?? doc.persona_id)}>
-                        {doc.persona?.nombre_completo || doc.codigo_docente}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs uppercase tracking-wide text-gray-500">Grupo</label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    value={pref.grupo_id}
-                    onChange={(e) => handlePreferenciaChange(index, 'grupo_id', e.target.value)}
-                  >
-                    <option value="">Seleccionar grupo</option>
-                    {grupos.map((grupo) => (
-                      <option key={grupo.id} value={grupo.id}>
-                        {grupo.codigo_grupo} — {grupo.materia?.nombre}
-                      </option>
-                    ))}
-                    </select>
-                  </div>
-                <div>
-                  <label className="block text-xs uppercase tracking-wide text-gray-500">Patrón</label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    value={pref.pattern}
-                    onChange={(e) => handlePreferenciaChange(index, 'pattern', e.target.value)}
-                  >
-                    <option value="">Seleccionar patrón</option>
-                    <option value="LMV">LMV (Lunes/Mié/Vier)</option>
-                    <option value="MJ">MJ (Martes/Jue)</option>
-                  </select>
-                </div>
               </div>
-            ))}
-          </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t">
+              <div className="space-y-4">
+                {preferencias.map((pref, index) => (
+                  <div key={`pref-${index}`} className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <label className="text-xs uppercase text-gray-500">Docente</label>
+                      <select
+                        className="input"
+                        value={pref.docente_id}
+                        onChange={(e) => handlePreferenciaChange(index, 'docente_id', e.target.value)}
+                      >
+                        <option value="">Seleccionar docente</option>
+                        {docentes.map((doc) => {
+                          const id = doc.id ?? doc.persona_id;
+                          return (
+                            <option key={`doc-${id}`} value={id}>
+                              {doc.persona?.nombre_completo || doc.codigo_docente || `Docente ${id}`}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase text-gray-500">Grupo</label>
+                      <select
+                        className="input"
+                        value={pref.grupo_id}
+                        onChange={(e) => handlePreferenciaChange(index, 'grupo_id', e.target.value)}
+                      >
+                        <option value="">Seleccionar grupo</option>
+                        {grupos.map((grupo) => (
+                          <option key={grupo.id} value={grupo.id}>
+                            {grupo.codigo_grupo} — {grupo.materia?.nombre || grupo.materia_nombre || 'Materia'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase text-gray-500">Patrón</label>
+                      <select
+                        className="input"
+                        value={pref.pattern}
+                        onChange={(e) => handlePreferenciaChange(index, 'pattern', e.target.value.toUpperCase())}
+                      >
+                        <option value="">Seleccionar patrón</option>
+                        <option value="LMV">LMV (Lun/Mié/Vie)</option>
+                        <option value="MJ">MJ (Mar/Jue)</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => navigate('/horarios')}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="btn-secondary"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading || !periodoId || !puedeGenerarPreferencias}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary"
               >
-                {loading ? 'Generando...' : 'Generar Horarios'}
+                {loading ? 'Generando...' : 'Generar horarios'}
               </button>
             </div>
           </form>
         )}
 
         {modo === 'manual' && (
-          <div className="border border-dashed border-gray-300 rounded-lg p-6 space-y-4">
-            <p className="text-base text-gray-600">
-              La opción manual permite editar asignaciones existentes (CU12). Navega al módulo de
-              horarios y selecciona un bloque para ajustarlo (docente, aula, bloque o modalidad).
+          <div className="filters-card space-y-4">
+            <p className="text-base text-gray-700">
+              La edición manual permite ajustar bloques ya creados. Recuerda navegar al listado
+              de horarios y editar el bloque específico para cambiar docente, aula o modalidad.
             </p>
             <button
               type="button"
               onClick={() => navigate('/horarios')}
-              className="px-5 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
+              className="btn-secondary"
             >
-              Ir a edición manual
+              Ir a la edición manual
             </button>
           </div>
         )}
       </div>
 
       {resultado && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Resumen</h2>
-          <ul className="text-sm text-gray-700 space-y-1">
+        <div className="section-card">
+          <h2 className="text-lg font-semibold text-gray-900">Resumen de la generación</h2>
+          <ul className="mt-2 space-y-1 text-sm text-gray-700">
             {resumen.map((line) => (
               <li key={line}>{line}</li>
             ))}

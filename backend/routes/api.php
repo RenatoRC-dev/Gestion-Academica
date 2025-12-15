@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\GestionAcademica\AdministrativoController;
 use App\Http\Controllers\Api\GestionAcademica\AreaAcademicaController;
 use App\Http\Controllers\Api\GestionAcademica\AreaAdministrativaController;
 use App\Http\Controllers\Api\GestionAcademica\AulaController;
+use App\Http\Controllers\Api\GestionAcademica\TipoAulaController;
 use App\Http\Controllers\Api\GestionAcademica\DocenteController;
 use App\Http\Controllers\Api\GestionAcademica\GrupoController;
 use App\Http\Controllers\Api\GestionAcademica\MateriaController;
@@ -60,6 +61,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('administrativos', AdministrativoController::class)
     ->parameters([
         'administrativos' => 'administrativo',
+    ]);
+    Route::apiResource('tipos-aula', TipoAulaController::class)
+    ->parameters([
+        'tipos-aula' => 'tipoAula',
     ]);
     Route::apiResource('periodos', PeriodoController::class)
     ->parameters([

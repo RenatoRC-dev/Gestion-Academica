@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import PageHeader from '../../components/PageHeader.jsx';
 import api from '../../services/api.js';
 import DataTable from '../../components/DataTable.jsx';
 import Alert from '../../components/Alert.jsx';
 import Modal from '../../components/Modal.jsx';
 import FieldErrorList from '../../components/FieldErrorList.jsx';
+import ActivoBadge from '../../components/ActivoBadge.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
 
 const emptyForm = {
@@ -53,17 +55,16 @@ export default function AreasAdministrativasPage() {
   };
 
   const handleCreate = () => {
-    console.log('➕ ABRIENDO CREACIÓN de nueva área');
     setIsEditing(false);
     setCurrentArea(null);
     setFormData(emptyForm);
     setValidationErrors({});
     setModalOpen(true);
-    console.log('✅ Estado actualizado - isEditing:', false, 'currentArea:', null);
+    setSuccess(null);
+    setError(null);
   };
 
   const handleEdit = (area) => {
-    console.log('📝 ABRIENDO EDICIÓN de área:', area);
     setIsEditing(true);
     setCurrentArea(area);
     setFormData({
@@ -73,11 +74,8 @@ export default function AreasAdministrativasPage() {
     });
     setValidationErrors({});
     setModalOpen(true);
-    console.log('✅ Estado actualizado - isEditing:', true, 'currentArea:', area, 'formData:', {
-      nombre: area.nombre,
-      descripcion: area.descripcion,
-      activo: area.activo,
-    });
+    setSuccess(null);
+    setError(null);
   };
 
   const handleDelete = async (area) => {
@@ -85,16 +83,10 @@ export default function AreasAdministrativasPage() {
     if (!confirmed) return;
 
     try {
-      console.log('🗑️ ELIMINANDO área ID:', area.id);
-      const response = await api.delete(`/areas-administrativas/${area.id}`);
-      console.log('✅ Respuesta delete:', response.data);
+      await api.delete(`/areas-administrativas/${area.id}`);
       setSuccess('Área administrativa eliminada correctamente');
-
-      // Forzar recarga de la lista
-      setLoading(true);
-      await fetchAreas();
+      fetchAreas();
     } catch (err) {
-      console.error('❌ Error al eliminar:', err.response?.data || err.message);
       setError(parseApiError(err));
     }
   };
@@ -116,18 +108,15 @@ export default function AreasAdministrativasPage() {
 
     try {
       if (isEditing && currentArea && currentArea.id) {
-        console.log('🔄 ACTUALIZANDO área ID:', currentArea.id, 'con datos:', formData);
         await api.put(`/areas-administrativas/${currentArea.id}`, formData);
         setSuccess('Área administrativa actualizada correctamente');
       } else {
-        console.log('✨ CREANDO nueva área con datos:', formData);
         await api.post('/areas-administrativas', formData);
         setSuccess('Área administrativa creada correctamente');
       }
       handleCloseModal();
-      await fetchAreas();
+      fetchAreas();
     } catch (err) {
-      console.error('❌ Error en submit:', err.response?.data || err.message);
       if (err.response?.status === 422) {
         setValidationErrors(err.response?.data?.errors || {});
       } else {
@@ -135,6 +124,21 @@ export default function AreasAdministrativasPage() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleToggleActivo = async (area) => {
+    if (!area) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await api.put(`/areas-administrativas/${area.id}`, { activo: !area.activo });
+      setSuccess(`Área administrativa ${area.activo ? 'desactivada' : 'activada'} correctamente`);
+      await fetchAreas();
+    } catch (err) {
+      setError(parseApiError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -149,29 +153,46 @@ export default function AreasAdministrativasPage() {
     {
       header: 'Activo',
       render: (row) => (
-        <span className={`px-2 py-1 text-xs font-medium rounded-full ${row.activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-          {row.activo ? 'Sí' : 'No'}
-        </span>
+        <ActivoBadge activo={row.activo} onToggle={() => handleToggleActivo(row)} disabled={loading} />
       ),
+      align: 'center',
     },
   ];
 
+  const toolbar = (
+    <div className="filters-card">
+      <div className="flex flex-wrap gap-3">
+        <input
+          type="text"
+          className="filters-full input"
+          placeholder="Buscar por nombre"
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setCurrentPage(1);
+          }}
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Áreas Administrativas</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Registra y gestiona las áreas administrativas de la institución
-          </p>
-        </div>
-        <button className="btn-primary" onClick={handleCreate}>
+      <PageHeader
+        title="Áreas administrativas"
+        subtitle="Registra y gestiona las áreas administrativas de la institución"
+      >
+        <button type="button" className="btn-primary" onClick={handleCreate}>
           + Nueva área
         </button>
-      </div>
+      </PageHeader>
 
-      {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
-      {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} />}
+      {(error || success) && (
+        <div className="space-y-2">
+          {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
+          {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} />}
+        </div>
+      )}
 
       <DataTable
         columns={columns}
@@ -186,22 +207,19 @@ export default function AreasAdministrativasPage() {
           setPerPage(value);
           setCurrentPage(1);
         }}
+        toolbar={toolbar}
         searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
+        onSearchChange={(value) => setSearchTerm(value)}
         emptyMessage="Aún no hay áreas administrativas registradas"
         actions={(row) => (
-          <>
-            <button type="button" className="table-action-button" onClick={() => handleEdit(row)}>
+          <div className="flex gap-2 flex-wrap">
+            <button type="button" className="action-link" onClick={() => handleEdit(row)}>
               Editar
             </button>
-            <button
-              type="button"
-              className="table-action-button danger"
-              onClick={() => handleDelete(row)}
-            >
+            <button type="button" className="action-link red" onClick={() => handleDelete(row)}>
               Eliminar
             </button>
-          </>
+          </div>
         )}
       />
 
@@ -210,14 +228,7 @@ export default function AreasAdministrativasPage() {
         title={isEditing ? `Editar área administrativa (ID: ${currentArea?.id})` : 'Nueva área administrativa'}
         onClose={handleCloseModal}
       >
-        <form onSubmit={handleSubmit} className="form-layout">
-          {/* Debug info */}
-          <div style={{ padding: '0.5rem', background: '#f0f0f0', fontSize: '0.75rem', fontFamily: 'monospace', marginBottom: '1rem' }}>
-            <div>🔍 DEBUG: isEditing = {String(isEditing)}</div>
-            <div>🔍 DEBUG: currentArea.id = {currentArea?.id || 'null'}</div>
-            <div>🔍 DEBUG: formData = {JSON.stringify(formData)}</div>
-          </div>
-
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="form-section">
             <p className="form-section-title">Información principal</p>
             <div className="form-grid">
@@ -233,7 +244,6 @@ export default function AreasAdministrativasPage() {
                 />
                 <FieldErrorList errors={validationErrors.nombre} />
               </div>
-
               <div className="form-field">
                 <label>Descripción</label>
                 <textarea
@@ -248,16 +258,14 @@ export default function AreasAdministrativasPage() {
           </div>
 
           <div className="form-section">
-            <div className="form-field">
-              <label>
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                  checked={formData.activo}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, activo: e.target.checked }))}
-                />
-                <span className="ml-2">Área activa</span>
-              </label>
+            <div className="form-field flex items-center">
+              <input
+                type="checkbox"
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                checked={formData.activo}
+                onChange={(e) => setFormData((prev) => ({ ...prev, activo: e.target.checked }))}
+              />
+              <span className="ml-3">Área activa</span>
             </div>
             <FieldErrorList errors={validationErrors.activo} />
           </div>
@@ -267,7 +275,7 @@ export default function AreasAdministrativasPage() {
               Cancelar
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? 'Guardando…' : (isEditing ? 'Actualizar' : 'Crear')}
+              {saving ? 'Guardando...' : isEditing ? 'Actualizar' : 'Crear'}
             </button>
           </div>
         </form>

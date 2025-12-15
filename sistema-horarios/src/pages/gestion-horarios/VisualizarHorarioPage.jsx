@@ -4,7 +4,9 @@ import horarioService from '../../services/gestion-horarios/horarioService.js';
 import api from '../../services/api.js';
 import DataTable from '../../components/DataTable.jsx';
 import Alert from '../../components/Alert.jsx';
+import ActivoBadge from '../../components/ActivoBadge.jsx';
 import Can from '../../components/Can.jsx';
+import PageHeader from '../../components/PageHeader.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
 import { ROLES } from '../../utils/roles';
 
@@ -13,7 +15,6 @@ function VisualizarHorarioPage() {
     const [horarios, setHorarios] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [perPage, setPerPage] = useState(10);
     const [totalPages, setTotalPages] = useState(1);
@@ -28,7 +29,8 @@ function VisualizarHorarioPage() {
         grupo_id: '',
         pattern: '',
         periodo_id: '',
-        activo: ''
+        activo: '',
+        search: ''
     });
 
     useEffect(() => {
@@ -36,13 +38,13 @@ function VisualizarHorarioPage() {
     }, [
         currentPage,
         perPage,
-        searchTerm,
         filters.docente_id,
         filters.materia_id,
         filters.grupo_id,
         filters.pattern,
         filters.periodo_id,
         filters.activo,
+        filters.search
     ]);
 
     useEffect(() => {
@@ -57,14 +59,12 @@ function VisualizarHorarioPage() {
                 api.get('/grupos', { params: { per_page: 100 } }),
                 api.get('/periodos', { params: { per_page: 100 } }),
             ]);
-            const docentes = docentesRes?.data?.data?.data ?? docentesRes?.data?.data ?? docentesRes?.data ?? [];
-            const materias = materiasRes?.data?.data?.data ?? materiasRes?.data?.data ?? materiasRes?.data ?? [];
-            const grupos = gruposRes?.data?.data?.data ?? gruposRes?.data?.data ?? gruposRes?.data ?? [];
-            const periodos = periodosRes?.data?.data?.data ?? periodosRes?.data?.data ?? periodosRes?.data ?? [];
-            setDocentesList(docentes);
-            setMateriasList(materias);
-            setGruposList(grupos);
-            setPeriodosList(periodos);
+            const extract = (resp) =>
+                resp?.data?.data?.data ?? resp?.data?.data ?? resp?.data ?? [];
+            setDocentesList(extract(docentesRes));
+            setMateriasList(extract(materiasRes));
+            setGruposList(extract(gruposRes));
+            setPeriodosList(extract(periodosRes));
         } catch (err) {
             console.error('Error cargando catálogos:', err);
         }
@@ -78,7 +78,7 @@ function VisualizarHorarioPage() {
             const { rows, meta } = await horarioService.listarHorarios({
                 page: currentPage,
                 per_page: perPage,
-                search: searchTerm.trim(),
+                search: filters.search.trim(),
                 docente_id: filters.docente_id,
                 materia_id: filters.materia_id,
                 grupo_id: filters.grupo_id,
@@ -118,11 +118,6 @@ function VisualizarHorarioPage() {
         }
     };
 
-    const handleSearchChange = (value) => {
-        setSearchTerm(value);
-        setCurrentPage(1);
-    };
-
     const handleFilterChange = (field, value) => {
         setFilters((prev) => ({ ...prev, [field]: value }));
         setCurrentPage(1);
@@ -159,7 +154,7 @@ function VisualizarHorarioPage() {
             sortable: true,
         },
         {
-            header: 'Período',
+            header: 'Periodo',
             accessor: 'periodo.nombre',
         },
         {
@@ -202,166 +197,167 @@ function VisualizarHorarioPage() {
         {
             header: 'Activo',
             render: (row) => (
-                <span
-                    className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        row.activo ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-                    }`}
-                >
-                    {row.activo ? 'Sí' : 'No'}
-                </span>
+                <ActivoBadge activo={row.activo} onToggle={() => handleToggleActivo(row)} disabled={loading} />
             ),
+            align: 'center',
         },
     ];
 
     const toolbarFilters = (
-            <div className="flex flex-wrap gap-3 py-2">
+        <div className="filters-card">
+            <div className="filters-grid">
                 <div>
-                    <label className="text-xs uppercase tracking-wide text-gray-500">Docente</label>
+                    <span className="filter-label">Buscar</span>
+                    <input
+                        className="filters-full input"
+                        placeholder="Buscar por docente, materia o aula"
+                        value={filters.search}
+                        onChange={(e) => handleFilterChange('search', e.target.value)}
+                    />
+                </div>
+                <div>
+                    <span className="filter-label">Docente</span>
                     <select
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    value={filters.docente_id}
-                    onChange={(e) => handleFilterChange('docente_id', e.target.value)}
-                >
-                    <option value="">Todos los docentes</option>
-                    {docentesList.map((doc) => (
-                        <option key={doc.persona_id ?? doc.id} value={doc.persona_id ?? doc.id}>
-                            {doc.persona?.nombre_completo || doc.nombre_completo || `Docente ${doc.id ?? doc.persona_id}`}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div>
-                <label className="text-xs uppercase tracking-wide text-gray-500">Materia</label>
-                <select
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    value={filters.materia_id}
-                    onChange={(e) => handleFilterChange('materia_id', e.target.value)}
-                >
-                    <option value="">Todas las materias</option>
-                    {materiasList.map((mat) => (
-                        <option key={mat.id} value={mat.id}>
-                            {mat.nombre}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div>
-                <label className="text-xs uppercase tracking-wide text-gray-500">Grupo</label>
-                <select
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    value={filters.grupo_id}
-                    onChange={(e) => handleFilterChange('grupo_id', e.target.value)}
-                >
-                    <option value="">Todos los grupos</option>
-                    {gruposList.map((grupo) => (
-                        <option key={grupo.id} value={grupo.id}>
-                            {grupo.codigo_grupo}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div>
-                <label className="text-xs uppercase tracking-wide text-gray-500">Patrón</label>
-                <select
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    value={filters.pattern}
-                    onChange={(e) => handleFilterChange('pattern', e.target.value)}
-                >
-                    <option value="">Todos los bloques</option>
-                    <option value="LMV">LMV (Lun/Mié/Vie)</option>
-                    <option value="MJ">MJ (Mar/Jue)</option>
-                </select>
-            </div>
-            <div>
-                <label className="text-xs uppercase tracking-wide text-gray-500">Semestre</label>
-                <select
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    value={filters.periodo_id}
-                    onChange={(e) => handleFilterChange('periodo_id', e.target.value)}
-                >
-                    <option value="">Todos los semestres</option>
-                    {periodosList.map((periodo) => (
-                        <option key={periodo.id} value={periodo.id}>
-                            {periodo.nombre}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div>
-                <label className="text-xs uppercase tracking-wide text-gray-500">Estado</label>
-                <select
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    value={filters.activo}
-                    onChange={(e) => handleFilterChange('activo', e.target.value)}
-                >
-                    <option value="">Todos</option>
-                    <option value="true">Activos</option>
-                    <option value="false">Inactivos</option>
-                </select>
+                        className="filters-full input"
+                        value={filters.docente_id}
+                        onChange={(e) => handleFilterChange('docente_id', e.target.value)}
+                    >
+                        <option value="">Todos</option>
+                        {docentesList.map((doc) => (
+                            <option key={doc.persona_id ?? doc.id} value={doc.persona_id ?? doc.id}>
+                                {doc.persona?.nombre_completo || doc.nombre_completo || `Docente ${doc.id ?? doc.persona_id}`}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <span className="filter-label">Materia</span>
+                    <select
+                        className="filters-full input"
+                        value={filters.materia_id}
+                        onChange={(e) => handleFilterChange('materia_id', e.target.value)}
+                    >
+                        <option value="">Todas</option>
+                        {materiasList.map((mat) => (
+                            <option key={mat.id} value={mat.id}>
+                                {mat.nombre}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <span className="filter-label">Grupo</span>
+                    <select
+                        className="filters-full input"
+                        value={filters.grupo_id}
+                        onChange={(e) => handleFilterChange('grupo_id', e.target.value)}
+                    >
+                        <option value="">Todos</option>
+                        {gruposList.map((grupo) => (
+                            <option key={grupo.id} value={grupo.id}>
+                                {grupo.codigo_grupo}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <span className="filter-label">Patrón</span>
+                    <select
+                        className="filters-full input"
+                        value={filters.pattern}
+                        onChange={(e) => handleFilterChange('pattern', e.target.value)}
+                    >
+                        <option value="">Todos los bloques</option>
+                        <option value="LMV">LMV (Lun/Mié/Vie)</option>
+                        <option value="MJ">MJ (Mar/Jue)</option>
+                    </select>
+                </div>
+                <div>
+                    <span className="filter-label">Periodo</span>
+                    <select
+                        className="filters-full input"
+                        value={filters.periodo_id}
+                        onChange={(e) => handleFilterChange('periodo_id', e.target.value)}
+                    >
+                        <option value="">Todos</option>
+                        {periodosList.map((periodo) => (
+                            <option key={periodo.id} value={periodo.id}>
+                                {periodo.nombre}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <span className="filter-label">Estado</span>
+                    <select
+                        className="filters-full input"
+                        value={filters.activo}
+                        onChange={(e) => handleFilterChange('activo', e.target.value)}
+                    >
+                        <option value="">Todos</option>
+                        <option value="true">Activos</option>
+                        <option value="false">Inactivos</option>
+                    </select>
+                </div>
             </div>
         </div>
     );
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">📅 Horarios</h1>
-                <div className="flex gap-2">
-                    <Can roles={[ROLES.ADMIN, ROLES.DOCENTE]}>
-                        <button
-                            onClick={() => navigate('/horarios/generar')}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                        >
-                            + Generar Horario
-                        </button>
-                    </Can>
-                </div>
-            </div>
+            <PageHeader
+                title="Horarios"
+                subtitle="Visualiza y filtra horarios por docente, materia o periodo"
+            >
+                <Can roles={[ROLES.ADMIN, ROLES.DOCENTE]}>
+                    <button
+                        onClick={() => navigate('/horarios/generar')}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        + Generar Horario
+                    </button>
+                </Can>
+            </PageHeader>
 
             {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
-            <DataTable
-                columns={columns}
-                data={horarios}
-                loading={loading}
-                currentPage={currentPage}
-                totalPages={totalPages}
-                perPage={perPage}
-                total={total}
-                onPageChange={setCurrentPage}
-                onPerPageChange={(val) => {
-                    setPerPage(val);
-                    setCurrentPage(1);
-                }}
-                searchTerm={searchTerm}
-                onSearchChange={handleSearchChange}
-                toolbar={toolbarFilters}
-                emptyMessage="No hay horarios disponibles"
-                actions={(row) => (
-                <div className="flex gap-2">
-                    <Can roles={[ROLES.ADMIN, ROLES.DOCENTE]}>
-                        <button
-                            onClick={() => navigate(`/horarios/editar/${row.id}`)}
-                            className="text-blue-600 hover:text-blue-800 font-medium text-sm"
-                        >
-                            Editar
-                        </button>
-                        <button
-                            onClick={() => handleDelete(row.id)}
-                            className="text-red-600 hover:text-red-800 font-medium text-sm"
-                        >
-                            Eliminar
-                        </button>
-                        <button
-                            onClick={() => handleToggleActivo(row)}
-                            className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
-                        >
-                            {row.activo ? 'Desactivar' : 'Activar'}
-                        </button>
-                    </Can>
-                </div>
-            )}
-            />
+            <div className="section-card space-y-4">
+                {toolbarFilters}
+                <DataTable
+                    columns={columns}
+                    data={horarios}
+                    loading={loading}
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    perPage={perPage}
+                    total={total}
+                    onPageChange={setCurrentPage}
+                    onPerPageChange={(val) => {
+                        setPerPage(val);
+                        setCurrentPage(1);
+                    }}
+                    toolbar={null}
+                    emptyMessage="No hay horarios disponibles"
+                    actions={(row) => (
+                        <div className="flex gap-2">
+                            <Can roles={[ROLES.ADMIN, ROLES.DOCENTE]}>
+                                <button
+                                    onClick={() => navigate(`/horarios/editar/${row.id}`)}
+                                    className="action-link"
+                                >
+                                    Editar
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(row.id)}
+                                    className="action-link red"
+                                >
+                                    Eliminar
+                                </button>
+                            </Can>
+                        </div>
+                    )}
+                />
+            </div>
         </div>
     );
 }

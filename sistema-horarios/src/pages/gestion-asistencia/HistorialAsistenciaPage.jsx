@@ -26,41 +26,26 @@ const columns = [
   },
   {
     header: 'Docente',
-    render: (row) => {
-      const persona = row.docente?.persona;
-      return persona?.nombre_completo || '-';
-    },
+    render: (row) => row.docente?.persona?.nombre_completo || '-',
   },
   {
     header: 'Materia',
     render: (row) => row.horario_asignado?.grupo?.materia?.nombre || '-',
   },
-    {
-      header: 'Grupo',
-      render: (row) =>
-        row.horario_asignado?.grupo?.codigo_grupo ||
-        row.horario_asignado?.grupo?.nombre ||
-        '-',
-    },
+  {
+    header: 'Grupo',
+    render: (row) =>
+      row.horario_asignado?.grupo?.codigo_grupo ||
+      row.horario_asignado?.grupo?.nombre ||
+      '-',
+  },
   {
     header: 'Estado',
-    render: (row) => {
-      const estado = row.estado;
-      return (
-        <span
-          style={{
-            padding: '0.25rem 0.75rem',
-            borderRadius: '999px',
-            backgroundColor: estado?.color || '#10B981',
-            color: '#fff',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-          }}
-        >
-          {estado?.nombre || 'N/A'}
-        </span>
-      );
-    },
+    render: (row) => (
+      <span className={`badge-pill ${row.estado?.nombre ? 'green' : 'gray'}`}>
+        {row.estado?.nombre || 'N/A'}
+      </span>
+    ),
     align: 'center',
   },
   {
@@ -69,6 +54,7 @@ const columns = [
   },
 ];
 
+const itemsPerPage = 15;
 const emptyFilters = {
   docente_id: '',
   periodo_id: '',
@@ -79,8 +65,6 @@ const emptyFilters = {
   fecha_inicio: '',
   fecha_fin: '',
 };
-
-const itemsPerPage = 15;
 
 export default function HistorialAsistenciaPage() {
   const [filters, setFilters] = useState(emptyFilters);
@@ -116,7 +100,10 @@ export default function HistorialAsistenciaPage() {
 
       const toArray = (resp) => {
         const payload = resp?.data?.data ?? resp?.data ?? [];
-        return Array.isArray(payload?.data) ? payload.data : payload;
+        if (Array.isArray(payload?.data)) return payload.data;
+        if (Array.isArray(payload?.rows)) return payload.rows;
+        if (Array.isArray(payload)) return payload;
+        return [];
       };
 
       setDocentes(toArray(docentesResp));
@@ -192,11 +179,7 @@ export default function HistorialAsistenciaPage() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error(err);
-      const message =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        'No se pudo exportar el reporte';
+      const message = err.response?.data?.message || err.response?.data?.error || 'No se pudo exportar el reporte';
       setResumenError(message);
     } finally {
       setExporting(false);
@@ -232,156 +215,158 @@ export default function HistorialAsistenciaPage() {
     <div className="space-y-6">
       <PageHeader
         title="Historial general de asistencias"
-        subtitle="Filtra y descarga el registro de todos los docentes"
+        subtitle="Filtra y descarga el registro completo de docentes"
       />
 
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
       {resumenError && <Alert type="warn" message={resumenError} onClose={() => setResumenError(null)} />}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="bg-white rounded-lg shadow-sm p-4 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs uppercase text-gray-500">Docente</label>
-              <select
-                className="input"
-                value={filters.docente_id}
-                onChange={(e) => handleFilterChange('docente_id', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {docentes.map((doc) => (
-                  <option key={doc.persona_id} value={doc.persona_id}>
-                    {doc.persona?.nombre_completo}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs uppercase text-gray-500">Periodo</label>
-              <select
-                className="input"
-                value={filters.periodo_id}
-                onChange={(e) => handleFilterChange('periodo_id', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {periodos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs uppercase text-gray-500">Materia</label>
-              <select
-                className="input"
-                value={filters.materia_id}
-                onChange={(e) => handleFilterChange('materia_id', e.target.value)}
-              >
-                <option value="">Todas</option>
-                {materias.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs uppercase text-gray-500">Grupo</label>
-              <select
-                className="input"
-                value={filters.grupo_id}
-                onChange={(e) => handleFilterChange('grupo_id', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {grupos.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.codigo_grupo || g.nombre || 'Grupo'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs uppercase text-gray-500">Estado</label>
-              <select
-                className="input"
-                value={filters.estado_id}
-                onChange={(e) => handleFilterChange('estado_id', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {estados.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs uppercase text-gray-500">Método</label>
-              <select
-                className="input"
-                value={filters.metodo_registro_id}
-                onChange={(e) => handleFilterChange('metodo_registro_id', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {metodos.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-xs uppercase text-gray-500">Desde</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={filters.fecha_inicio}
-                  onChange={(e) => handleFilterChange('fecha_inicio', e.target.value)}
-                />
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <section className="section-card space-y-4">
+          <div className="filters-card space-y-4">
+            <div className="filters-grid">
+              <div>
+                <label className="filter-label">Docente</label>
+                <select
+                  className="filters-full input"
+                  value={filters.docente_id}
+                  onChange={(e) => handleFilterChange('docente_id', e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {docentes.map((doc) => (
+                    <option key={doc.persona_id} value={doc.persona_id}>
+                      {doc.persona?.nombre_completo}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="flex-1">
-                <label className="text-xs uppercase text-gray-500">Hasta</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={filters.fecha_fin}
-                  onChange={(e) => handleFilterChange('fecha_fin', e.target.value)}
-                />
+              <div>
+                <label className="filter-label">Periodo</label>
+                <select
+                  className="filters-full input"
+                  value={filters.periodo_id}
+                  onChange={(e) => handleFilterChange('periodo_id', e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {periodos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="filter-label">Materia</label>
+                <select
+                  className="filters-full input"
+                  value={filters.materia_id}
+                  onChange={(e) => handleFilterChange('materia_id', e.target.value)}
+                >
+                  <option value="">Todas</option>
+                  {materias.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="filter-label">Grupo</label>
+                <select
+                  className="filters-full input"
+                  value={filters.grupo_id}
+                  onChange={(e) => handleFilterChange('grupo_id', e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {grupos.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.codigo_grupo || g.nombre || 'Grupo'}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-4 flex flex-col gap-3">
+            <div className="filters-grid">
+              <div>
+                <label className="filter-label">Estado</label>
+                <select
+                  className="filters-full input"
+                  value={filters.estado_id}
+                  onChange={(e) => handleFilterChange('estado_id', e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {estados.map((estado) => (
+                    <option key={estado.id} value={estado.id}>
+                      {estado.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="filter-label">Método</label>
+                <select
+                  className="filters-full input"
+                  value={filters.metodo_registro_id}
+                  onChange={(e) => handleFilterChange('metodo_registro_id', e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {metodos.map((metodo) => (
+                    <option key={metodo.id} value={metodo.id}>
+                      {metodo.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="filter-label">Desde</label>
+                  <input
+                    type="date"
+                    className="filters-full input"
+                    value={filters.fecha_inicio}
+                    onChange={(e) => handleFilterChange('fecha_inicio', e.target.value)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="filter-label">Hasta</label>
+                  <input
+                    type="date"
+                    className="filters-full input"
+                    value={filters.fecha_fin}
+                    onChange={(e) => handleFilterChange('fecha_fin', e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="section-card space-y-4">
           <button
             onClick={generateResumen}
             disabled={resumenLoading}
-            className="btn-primary"
+            className="btn-primary w-full"
           >
-            {resumenLoading ? 'Generando resumen…' : 'Generar resumen'}
+            {resumenLoading ? 'Generando resumen...' : 'Generar resumen'}
           </button>
           <div className="flex gap-3 flex-wrap">
             <button
               onClick={() => handleExport('pdf')}
               disabled={exporting}
-              className="btn-secondary"
+              className="btn-secondary flex-1"
             >
-              {exporting ? 'Exportando PDF…' : 'Exportar PDF'}
+              {exporting ? 'Exportando PDF...' : 'Exportar PDF'}
             </button>
             <button
               onClick={() => handleExport('excel')}
               disabled={exporting}
-              className="btn-secondary"
+              className="btn-secondary flex-1"
             >
-              {exporting ? 'Exportando Excel…' : 'Exportar Excel'}
+              {exporting ? 'Exportando Excel...' : 'Exportar Excel'}
             </button>
           </div>
-        </div>
+        </section>
       </div>
 
       {summary && (
@@ -389,10 +374,10 @@ export default function HistorialAsistenciaPage() {
           {summary.map((item) => (
             <div
               key={item.label}
-              className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 text-center"
+              className="section-card text-center space-y-1"
             >
               <div className="text-xs uppercase text-gray-500">{item.label}</div>
-              <div className="text-2xl font-semibold mt-2 text-gray-900">{item.value}</div>
+              <div className="text-2xl font-semibold text-gray-900">{item.value}</div>
             </div>
           ))}
         </div>

@@ -14,7 +14,7 @@ class AulaController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $aulas = Aula::paginate(15);
+            $aulas = Aula::with('tipoAula')->paginate(15);
             return response()->json([
                 'success' => true,
                 'data' => $aulas,
@@ -39,6 +39,7 @@ class AulaController extends Controller
                 'piso' => 'nullable|integer',
                 'equipamiento' => 'nullable|string',
                 'es_virtual' => 'nullable|boolean',
+                'tipo_aula_id' => 'nullable|exists:tipo_aula,id',
                 'activo' => 'nullable|boolean',
             ], [
                 'nombre.required' => 'El nombre es requerido',
@@ -55,13 +56,15 @@ class AulaController extends Controller
                 'piso' => $validated['piso'] ?? null,
                 'equipamiento' => $validated['equipamiento'] ?? null,
                 'es_virtual' => $validated['es_virtual'] ?? false,
+                'tipo_aula_id' => $validated['tipo_aula_id'] ?? null,
+                'activo' => $validated['activo'] ?? true,
             ]);
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'data' => $aula,
+                'data' => $aula->load('tipoAula'),
                 'message' => 'Aula creada exitosamente'
             ], 201);
         } catch (\Exception $e) {
@@ -102,6 +105,7 @@ class AulaController extends Controller
                 'es_virtual' => 'nullable|boolean',
                 'activo' => 'nullable|boolean',
                 'piso' => 'nullable|integer',
+                'tipo_aula_id' => 'nullable|exists:tipo_aula,id',
             ]);
 
             DB::beginTransaction();
@@ -114,13 +118,14 @@ class AulaController extends Controller
                 'es_virtual' => $validated['es_virtual'] ?? null,
                 'activo' => $validated['activo'] ?? null,
                 'piso' => $validated['piso'] ?? null,
+                'tipo_aula_id' => array_key_exists('tipo_aula_id', $validated) ? $validated['tipo_aula_id'] : null,
             ], fn($val) => $val !== null));
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'data' => $aula->fresh(),
+                'data' => $aula->fresh()->load('tipoAula'),
                 'message' => 'Aula actualizada exitosamente'
             ], 200);
         } catch (\Exception $e) {

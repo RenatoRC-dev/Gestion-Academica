@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Seguridad;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bitacora;
+use App\Support\BitacoraFormatter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +34,14 @@ class BitacoraController extends Controller
 
             $perPage = (int) ($request->query('per_page', 15));
             $bitacoras = $q->orderByDesc('fecha_hora')->paginate($perPage);
+            $bitacoras->getCollection()->transform(function ($entry) {
+                $prev = $entry->datos_anteriores ? json_decode($entry->datos_anteriores, true) : null;
+                $next = $entry->datos_nuevos ? json_decode($entry->datos_nuevos, true) : null;
+                $cambios = BitacoraFormatter::buildDiffEntries($prev, $next);
+                $entry->cambios = $cambios;
+                $entry->detalle_resumido = BitacoraFormatter::buildDiffText($cambios);
+                return $entry;
+            });
 
             return response()->json([
                 'success' => true,
@@ -51,6 +60,11 @@ class BitacoraController extends Controller
     public function show(Bitacora $bitacora): JsonResponse
     {
         try {
+            $prev = $bitacora->datos_anteriores ? json_decode($bitacora->datos_anteriores, true) : null;
+            $next = $bitacora->datos_nuevos ? json_decode($bitacora->datos_nuevos, true) : null;
+            $cambios = BitacoraFormatter::buildDiffEntries($prev, $next);
+            $bitacora->cambios = $cambios;
+            $bitacora->detalle_resumido = BitacoraFormatter::buildDiffText($cambios);
             return response()->json([
                 'success' => true,
                 'data' => $bitacora,

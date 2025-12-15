@@ -23,6 +23,7 @@ import {
   clearAulasSaveError,
   clearAulasDeleteError,
 } from '../../store/slices/gestion-academica/aulasSlice.js';
+import tipoAulaService from '../../services/gestion-academica/tipoAulaService.js';
 import ActivoBadge from '../../components/ActivoBadge.jsx';
 
 const emptyForm = {
@@ -32,6 +33,7 @@ const emptyForm = {
   piso: 1,
   equipamiento: '',
   es_virtual: false,
+  tipoAulaId: '',
 };
 
 export default function AulasPage() {
@@ -53,10 +55,30 @@ export default function AulasPage() {
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState({ open: false, row: null });
   const [form, setForm] = useState(emptyForm);
+  const [tiposAula, setTiposAula] = useState([]);
 
   useEffect(() => {
     dispatch(fetchAulas({ page, per_page: perPage }));
   }, [dispatch, page, perPage]);
+
+  useEffect(() => {
+    let mounted = true;
+    const cargarTipos = async () => {
+      try {
+        const payload = await tipoAulaService.getAll({ per_page: 100 });
+        const lista = payload?.data?.data ?? payload?.data ?? [];
+        if (mounted) {
+          setTiposAula(Array.isArray(lista) ? lista : []);
+        }
+      } catch (error) {
+        // ignorar
+      }
+    };
+    cargarTipos();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (saveError?.message) {
@@ -78,6 +100,9 @@ export default function AulasPage() {
       const searchable = [
         row.codigo_aula,
         row.ubicacion,
+        row.tipo?.nombre,
+        row.tipoAula?.nombre,
+        row.tipo_aula?.nombre,
         row.piso?.toString(),
         row.equipamiento,
         row.activo ? 'activo' : 'inactivo',
@@ -98,10 +123,26 @@ export default function AulasPage() {
     } catch {}
   };
 
+  const toggleVirtual = async (row) => {
+    if (!row) return;
+    try {
+      await dispatch(updateAula({ id: row.id, es_virtual: !row.es_virtual })).unwrap();
+      toast.push(
+        `Aula ${row.codigo_aula} ${row.es_virtual ? 'marcada como presencial' : 'marcada como virtual'}`,
+        'success'
+      );
+    } catch {}
+  };
+
   const columns = [
     { header: 'Código', accessor: 'codigo_aula', sortable: true },
     { header: 'Capacidad', accessor: 'capacidad', align: 'center' },
     { header: 'Ubicación', accessor: 'ubicacion' },
+    {
+      header: 'Tipo',
+      render: (row) =>
+        row.tipo?.nombre ?? row.tipoAula?.nombre ?? row.tipo_aula?.nombre ?? '-',
+    },
     { header: 'Piso', accessor: 'piso', align: 'center' },
     { header: 'Equipamiento', accessor: 'equipamiento' },
     {
@@ -116,7 +157,9 @@ export default function AulasPage() {
       header: 'Virtual',
       accessor: 'es_virtual',
       align: 'center',
-      render: (row) => (row.es_virtual ? 'Sí' : 'No'),
+      render: (row) => (
+        <ActivoBadge activo={Boolean(row.es_virtual)} onToggle={() => toggleVirtual(row)} disabled={saving} />
+      ),
     },
   ];
 
@@ -136,6 +179,8 @@ export default function AulasPage() {
       equipamiento: row?.equipamiento ?? '',
       es_virtual: Boolean(row?.es_virtual),
       piso: row?.piso ?? 1,
+      tipoAulaId:
+        row?.tipo_aula_id ?? row?.tipo?.id ?? row?.tipoAula?.id ?? row?.tipo_aula?.id ?? '',
     });
     dispatch(clearAulasSaveError());
     setOpenForm(true);
@@ -149,12 +194,21 @@ export default function AulasPage() {
       toast.push('El código del aula es obligatorio', 'error');
       return;
     }
+    const payload = {
+      nombre: form.nombre,
+      capacidad: form.capacidad,
+      ubicacion: form.ubicacion,
+      equipamiento: form.equipamiento,
+      es_virtual: form.es_virtual,
+      piso: form.piso,
+      tipo_aula_id: form.tipoAulaId || null,
+    };
     try {
       if (editing) {
-        await dispatch(updateAula({ id: editing.id, ...form })).unwrap();
+        await dispatch(updateAula({ id: editing.id, ...payload })).unwrap();
         toast.push('Aula actualizada', 'success');
       } else {
-        await dispatch(createAula(form)).unwrap();
+        await dispatch(createAula(payload)).unwrap();
         toast.push('Aula creada', 'success');
       }
       setOpenForm(false);
@@ -260,6 +314,26 @@ export default function AulasPage() {
                   value={form.ubicacion}
                   onChange={(e) => setForm((prev) => ({ ...prev, ubicacion: e.target.value }))}
                 />
+              </div>
+              <div className="form-field">
+                <label>Tipo de aula</label>
+                <select
+                  className="input"
+                  value={form.tipoAulaId}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, tipoAulaId: e.target.value }))
+                  }
+                >
+                  <option value="">Sin asignar</option>
+                  {tiposAula.map((tipo) => (
+                    <option key={tipo.id} value={tipo.id}>
+                      {tipo.nombre}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500">
+                  Asigna un tipo para organizar las aulas en el catálogo.
+                </p>
               </div>
               <div className="form-field">
                 <label>Piso</label>
