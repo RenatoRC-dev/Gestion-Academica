@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import authService from '../services/authService.js';
-import { doLogin, restoreSession, doLogout } from '../store/slices/authSlice.js';
+import authService from '../services/gestion-usuarios/authService.js';
+import { doLogin, restoreSession, doLogout } from '../store/slices/gestion-usuarios/authSlice.js';
 
 export const useAuth = () => {
     const dispatch = useDispatch();

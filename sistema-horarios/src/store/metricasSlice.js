@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import metricasService from '../services/metricasService.js';
+import metricasService from '../services/reportes/metricasService.js';
 
 export const fetchMetricas = createAsyncThunk(
   'metricas/fetchMetricas',

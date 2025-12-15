@@ -1,18 +1,18 @@
 import { configureStore } from '@reduxjs/toolkit';
 
-import authReducer from './slices/authSlice.js';
-import docentesReducer from './slices/docentesSlice.js';
-import materiasReducer from './slices/materiasSlice.js';
-import aulasReducer from './slices/aulasSlice.js';
-import gruposReducer from './slices/gruposSlice.js';
-import periodosReducer from './slices/periodosSlice.js';
-import bloquesReducer from './slices/bloquesSlice.js';
-import horariosReducer from './slices/horariosSlice.js';
-import asistenciaReducer from './slices/asistenciaSlice.js';
-import usuariosReducer from './slices/usuariosSlice.js';
-import rolesReducer from './slices/rolesSlice.js';
-import bitacoraReducer from './slices/bitacoraSlice.js';
-import userRolesReducer from './slices/userRolesSlice.js';
+import authReducer from './slices/gestion-usuarios/authSlice.js';
+import docentesReducer from './slices/gestion-academica/docentesSlice.js';
+import materiasReducer from './slices/gestion-academica/materiasSlice.js';
+import aulasReducer from './slices/gestion-academica/aulasSlice.js';
+import gruposReducer from './slices/gestion-academica/gruposSlice.js';
+import periodosReducer from './slices/gestion-academica/periodosSlice.js';
+import bloquesReducer from './slices/gestion-academica/bloquesSlice.js';
+import horariosReducer from './slices/gestion-horarios/horariosSlice.js';
+import asistenciaReducer from './slices/gestion-asistencia/asistenciaSlice.js';
+import usuariosReducer from './slices/gestion-usuarios/usuariosSlice.js';
+import rolesReducer from './slices/gestion-usuarios/rolesSlice.js';
+import bitacoraReducer from './slices/gestion-usuarios/bitacoraSlice.js';
+import userRolesReducer from './slices/gestion-usuarios/userRolesSlice.js';
 
 const store = configureStore({
     reducer: {

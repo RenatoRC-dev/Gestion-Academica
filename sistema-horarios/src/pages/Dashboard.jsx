@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { FaChalkboardTeacher, FaBook, FaBuilding, FaUsers, FaCalendarAlt, FaUserTie } from 'react-icons/fa';
 import { useState, useEffect } from 'react';
-import metricasService from '../services/metricasService.js';
-import horarioService from '../services/horarioService.js';
+import metricasService from '../services/reportes/metricasService.js';
+import horarioService from '../services/gestion-horarios/horarioService.js';
 import Alert from '../components/Alert.jsx';
 import { parseApiError } from '../utils/httpErrors.js';
 import { useAuth } from '../context/AuthContext.jsx';

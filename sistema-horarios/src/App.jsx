@@ -10,35 +10,35 @@ import NotFoundPage from './pages/NotFoundPage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 
 // Páginas de Administración
-import UsuariosPage from './pages/administracion/UsuariosPage.jsx';
-import RolesPage from './pages/administracion/RolesPage.jsx';
-import BitacoraPage from './pages/administracion/BitacoraPage.jsx';
-import ImportarUsuariosPage from './pages/usuarios/ImportarUsuariosPage.jsx';
+import UsuariosPage from './pages/gestion-usuarios/UsuariosPage.jsx';
+import RolesPage from './pages/gestion-usuarios/RolesPage.jsx';
+import BitacoraPage from './pages/gestion-usuarios/BitacoraPage.jsx';
+import ImportarUsuariosPage from './pages/gestion-usuarios/ImportarUsuariosPage.jsx';
 
 // Páginas Académicas
-import PeriodosPage from './pages/academica/PeriodosPage.jsx';
-import DocentesPage from './pages/academica/DocentesPage.jsx';
-import AulasPage from './pages/academica/AulasPage.jsx';
-import MateriasPage from './pages/academica/MateriasPage.jsx';
-import GruposPage from './pages/academica/GruposPage.jsx';
-import BloquesPage from './pages/academica/BloquesPage.jsx';
-import AdministrativosPage from './pages/academica/AdministrativosPage.jsx';
-import AreasAcademicasPage from './pages/academica/AreasAcademicasPage.jsx';
-import AreasAdministrativasPage from './pages/administrativas/AreasAdministrativasPage.jsx';
+import PeriodosPage from './pages/gestion-academica/PeriodosPage.jsx';
+import DocentesPage from './pages/gestion-academica/DocentesPage.jsx';
+import AulasPage from './pages/gestion-academica/AulasPage.jsx';
+import MateriasPage from './pages/gestion-academica/MateriasPage.jsx';
+import GruposPage from './pages/gestion-academica/GruposPage.jsx';
+import BloquesPage from './pages/gestion-academica/BloquesPage.jsx';
+import AdministrativosPage from './pages/gestion-academica/AdministrativosPage.jsx';
+import AreasAcademicasPage from './pages/gestion-academica/AreasAcademicasPage.jsx';
+import AreasAdministrativasPage from './pages/gestion-academica/AreasAdministrativasPage.jsx';
 
 // Páginas de Horarios
-import VisualizarHorarioPage from './pages/horarios/VisualizarHorarioPage.jsx';
-import EditarHorarioPage from './pages/horarios/EditarHorarioPage.jsx';
-import GenerarHorarioPage from './pages/horarios/GenerarHorarioPage.jsx';
+import VisualizarHorarioPage from './pages/gestion-horarios/VisualizarHorarioPage.jsx';
+import EditarHorarioPage from './pages/gestion-horarios/EditarHorarioPage.jsx';
+import GenerarHorarioPage from './pages/gestion-horarios/GenerarHorarioPage.jsx';
 
 // Páginas de Asistencia
-import GenerarEscanearQRPage from './pages/asistencia/GenerarEscanearQRPage.jsx';
-import ConfirmarAsistenciaPage from './pages/asistencia/ConfirmarAsistenciaPage.jsx';
-import EstadosAsistenciaPage from './pages/asistencia/EstadosAsistenciaPage.jsx';
-import MetodosRegistroPage from './pages/asistencia/MetodosRegistroPage.jsx';
-import RegistrarAsistenciaPage from './pages/asistencia/RegistrarAsistenciaPage.jsx';
-import HistorialAsistenciaPage from './pages/asistencia/HistorialAsistenciaPage.jsx';
-import MiHistorialAsistenciaPage from './pages/asistencia/MiHistorialAsistenciaPage.jsx';
+import GenerarEscanearQRPage from './pages/gestion-asistencia/GenerarEscanearQRPage.jsx';
+import ConfirmarAsistenciaPage from './pages/gestion-asistencia/ConfirmarAsistenciaPage.jsx';
+import EstadosAsistenciaPage from './pages/gestion-asistencia/EstadosAsistenciaPage.jsx';
+import MetodosRegistroPage from './pages/gestion-asistencia/MetodosRegistroPage.jsx';
+import RegistrarAsistenciaPage from './pages/gestion-asistencia/RegistrarAsistenciaPage.jsx';
+import HistorialAsistenciaPage from './pages/gestion-asistencia/HistorialAsistenciaPage.jsx';
+import MiHistorialAsistenciaPage from './pages/gestion-asistencia/MiHistorialAsistenciaPage.jsx';
 
 function Splash() {
     return (

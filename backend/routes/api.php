@@ -1,28 +1,29 @@
 ﻿<?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\DocenteController;
-use App\Http\Controllers\Api\AdministrativoController;
-use App\Http\Controllers\Api\MateriaController;
-use App\Http\Controllers\Api\AulaController;
-use App\Http\Controllers\Api\GrupoController;
-use App\Http\Controllers\Api\PeriodoController;
-use App\Http\Controllers\Api\HorarioController;
-use App\Http\Controllers\Api\AsistenciaController;
-use App\Http\Controllers\Api\BloqueHorarioController;
-use App\Http\Controllers\Api\AreaAcademicaController;
-use App\Http\Controllers\Api\RolController;
-use App\Http\Controllers\Api\UsuarioController;
-use App\Http\Controllers\Api\UsuarioRolController;
-use App\Http\Controllers\Api\BitacoraController;
-use App\Http\Controllers\Api\DiaController;
-use App\Http\Controllers\Api\HorarioFranjaController;
-use App\Http\Controllers\Api\EstadoAsistenciaController;
-use App\Http\Controllers\Api\MetodoRegistroAsistenciaController;
-use App\Http\Controllers\Api\ReporteAsistenciaController;
-use App\Http\Controllers\Api\ImportacionController;
-use App\Http\Controllers\Api\AreaAdministrativaController;
+use App\Http\Controllers\Api\GestionAcademica\AdministrativoController;
+use App\Http\Controllers\Api\GestionAcademica\AreaAcademicaController;
+use App\Http\Controllers\Api\GestionAcademica\AreaAdministrativaController;
+use App\Http\Controllers\Api\GestionAcademica\AulaController;
+use App\Http\Controllers\Api\GestionAcademica\DocenteController;
+use App\Http\Controllers\Api\GestionAcademica\GrupoController;
+use App\Http\Controllers\Api\GestionAcademica\MateriaController;
+use App\Http\Controllers\Api\GestionAcademica\PeriodoController;
+use App\Http\Controllers\Api\GestionAsistencia\AsistenciaController;
+use App\Http\Controllers\Api\GestionAsistencia\EstadoAsistenciaController;
+use App\Http\Controllers\Api\GestionAsistencia\MetodoRegistroAsistenciaController;
+use App\Http\Controllers\Api\GestionHorarios\BloqueHorarioController;
+use App\Http\Controllers\Api\GestionHorarios\DiaController;
+use App\Http\Controllers\Api\GestionHorarios\HorarioController;
+use App\Http\Controllers\Api\GestionHorarios\HorarioFranjaController;
+use App\Http\Controllers\Api\Reportes\MetricasController;
+use App\Http\Controllers\Api\Reportes\ReporteAsistenciaController;
+use App\Http\Controllers\Api\Seguridad\AuthController;
+use App\Http\Controllers\Api\Seguridad\BitacoraController;
+use App\Http\Controllers\Api\Seguridad\ImportacionController;
+use App\Http\Controllers\Api\Seguridad\RolController;
+use App\Http\Controllers\Api\Seguridad\UsuarioController;
+use App\Http\Controllers\Api\Seguridad\UsuarioRolController;
 
 // Rutas públicas
 // Corrección: Rate limiting contra fuerza bruta (5 intentos por minuto)

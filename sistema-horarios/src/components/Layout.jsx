@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { logout } from '../store/slices/authSlice.js';
+import { logout } from '../store/slices/gestion-usuarios/authSlice.js';
 
 function Layout() {
     const [sidebarOpen, setSidebarOpen] = useState(true);

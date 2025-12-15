@@ -4,14 +4,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import Modal from '../../components/Modal.jsx';
 import Alert from '../../components/Alert.jsx';
 import { useToast } from '../../components/ToastProvider.jsx';
-import authService from '../../services/authService.js';
+import authService from '../../services/gestion-usuarios/authService.js';
 import {
   doLogin,
   clearAuthError,
   selectAuthLoading,
   selectAuthError,
   selectIsAuthenticated,
-} from '../../store/slices/authSlice.js';
+} from '../../store/slices/gestion-usuarios/authSlice.js';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');

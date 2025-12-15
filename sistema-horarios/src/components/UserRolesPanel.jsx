@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import Modal from './Modal.jsx';
 import { useDispatch, useSelector } from 'react-redux';
-import { selectUserRoles, fetchRolesDelUsuario, asignarRol, revocarRol, selectUserRolesSaving } from '../store/slices/userRolesSlice.js';
+import { selectUserRoles, fetchRolesDelUsuario, asignarRol, revocarRol, selectUserRolesSaving } from '../store/slices/gestion-usuarios/userRolesSlice.js';
 import api from '../services/api.js';
 
 // Panel lateral/Modal para administrar los roles de un usuario
