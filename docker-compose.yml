@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: gestion
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+  backend:
+    build: ./backend
+    depends_on:
+      - db
+    env_file:
+      - ./backend/.env.docker
+    volumes:
+      - ./backend:/var/www/html
+    expose:
+      - "9000"
+    restart: unless-stopped
+
+  backend-web:
+    image: nginx:alpine
+    depends_on:
+      - backend
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend:/var/www/html:ro
+      - ./deploy/backend-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  frontend:
+    build:
+      context: ./sistema-horarios
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+volumes:
+  db_data:
