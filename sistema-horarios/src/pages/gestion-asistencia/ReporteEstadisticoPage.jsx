@@ -104,6 +104,23 @@ export default function ReporteEstadisticoPage() {
           ))}</div>
 
           <section className="section-card space-y-3">
+            <div className="text-sm font-semibold text-gray-800">Aulas libres en este momento</div>
+            {datos.aulas_libres_detalles && datos.aulas_libres_detalles.length > 0 ? (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {datos.aulas_libres_detalles.map((aula) => (
+                  <span key={`aula-${aula.id}`} className="badge-pill gray">
+                    {aula.codigo_aula}
+                    {aula.ubicacion ? ` · ${aula.ubicacion}` : ''}
+                    {aula.piso ? ` (Piso ${aula.piso})` : ''}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500 mt-1">Todas las aulas están ocupadas ahora mismo.</div>
+            )}
+          </section>
+
+          <section className="section-card space-y-3">
             <div className="text-sm text-gray-600">
               Periodo: {datos.periodo?.nombre} ({datos.periodo?.inicio} - {datos.periodo?.fin})
             </div>

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api.js';
 import Alert from '../../components/Alert.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { parseApiError } from '../../utils/httpErrors.js';
+import horarioService from '../../services/gestion-horarios/horarioService.js';
 
 function GenerarEscanearQRPage() {
   const navigate = useNavigate();
@@ -11,7 +12,10 @@ function GenerarEscanearQRPage() {
   const [genError, setGenError] = useState(null);
   const [qrData, setQrData] = useState(null);
   const [countdown, setCountdown] = useState(null);
-  const [horarios, setHorarios] = useState([]);
+  const [agenda, setAgenda] = useState([]);
+  const [horariosDelDia, setHorariosDelDia] = useState([]);
+  const [agendaLoading, setAgendaLoading] = useState(true);
+  const [agendaError, setAgendaError] = useState(null);
   const [selectedHorario, setSelectedHorario] = useState('');
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError] = useState(null);
@@ -20,25 +24,52 @@ function GenerarEscanearQRPage() {
   const [asistenciaData, setAsistenciaData] = useState(null);
 
   useEffect(() => {
+    let active = true;
     const load = async () => {
       try {
-        const response = await api.get('/horarios');
-        const payload = response.data?.data ?? response.data ?? [];
-        const rows = Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray(payload?.rows)
-            ? payload.rows
-            : Array.isArray(payload)
-              ? payload
-              : [];
-        setHorarios(rows);
+        setAgendaLoading(true);
+        const rows = await horarioService.calendarioDocente();
+        if (!active) return;
+        setAgenda(Array.isArray(rows) ? rows : []);
+        setAgendaError(null);
       } catch (err) {
-        setGenError(parseApiError(err));
+        if (!active) return;
+        setAgendaError(parseApiError(err));
+        setAgenda([]);
+      } finally {
+        if (active) setAgendaLoading(false);
       }
     };
 
     load();
+
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const diaActual = useMemo(
+    () => new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(new Date()),
+    []
+  );
+
+  const normalizeText = (value) =>
+    value
+      ?.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase() ?? '';
+
+  useEffect(() => {
+    if (!agenda.length || !diaActual) {
+      setHorariosDelDia([]);
+      return;
+    }
+
+    const objetivo = normalizeText(diaActual);
+    setHorariosDelDia(
+      agenda.filter((horario) => normalizeText(horario.dia) === objetivo)
+    );
+  }, [agenda, diaActual]);
 
   useEffect(() => {
     if (!qrData?.data?.fecha_expiracion) return undefined;
@@ -60,14 +91,15 @@ function GenerarEscanearQRPage() {
     return () => clearInterval(interval);
   }, [qrData]);
 
-  const horariosPresenciales = horarios.filter((h) => {
-    const nombre = h?.modalidad?.nombre || h?.modalidad_nombre || '';
-    const id = h?.modalidad_id;
-    return (
-      (typeof nombre === 'string' && nombre.toLowerCase().includes('presencial')) ||
-      id === 1
-    );
+  const horariosPresenciales = horariosDelDia.filter((h) => {
+    const nombre = h?.modalidad || '';
+    return typeof nombre === 'string' && nombre.toLowerCase().includes('presencial');
   });
+
+  useEffect(() => {
+    if (horariosPresenciales.some((h) => h.id === Number(selectedHorario))) return;
+    setSelectedHorario('');
+  }, [horariosPresenciales, selectedHorario]);
 
   const handleGenerate = async (e) => {
     e.preventDefault();
@@ -147,6 +179,7 @@ function GenerarEscanearQRPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="section-card space-y-5">
           {genError && <Alert type="error" message={genError} onClose={() => setGenError(null)} />}
+          {agendaError && <Alert type="error" message={agendaError} onClose={() => setAgendaError(null)} />}
 
           <form onSubmit={handleGenerate} className="space-y-4">
             <div>
@@ -161,16 +194,28 @@ function GenerarEscanearQRPage() {
               >
                 <option value="">Seleccionar horario</option>
                 {horariosPresenciales.map((h) => {
-                  const bloque = h?.bloque_horario || h?.bloqueHorario;
-                  const dia = bloque?.dia?.nombre || '-';
+                  const materia = h?.materia || 'Materia';
+                  const grupo = h?.grupo || 'Grupo';
+                  const dia = h?.dia || '-';
+                  const horarioTexto =
+                    h?.hora_inicio && h?.hora_fin ? ` (${h.hora_inicio} - ${h.hora_fin})` : '';
                   return (
                     <option key={h.id} value={h.id}>
-                      {h.grupo?.materia?.nombre || 'Materia'} - {h.grupo?.codigo_grupo || 'Grupo'} - {dia}
+                      {materia} - {grupo} - {dia}
+                      {horarioTexto}
                     </option>
                   );
                 })}
               </select>
-              <p className="text-xs text-gray-500 mt-1">Solo aparecen horarios presenciales</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {agendaLoading
+                  ? 'Cargando los horarios presenciales de hoy...'
+                  : agendaError
+                    ? 'No se pudieron cargar los horarios del día.'
+                    : horariosPresenciales.length
+                      ? 'Solo aparecen los horarios presenciales del día de hoy.'
+                      : 'No hay horarios presenciales programados para el día de hoy.'}
+              </p>
             </div>
 
             <button

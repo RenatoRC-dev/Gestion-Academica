@@ -36,7 +36,7 @@ class ReporteEstadisticoService
         $fechaActual = $ahora->format('Y-m-d');
         $diaActual = $ahora->isoWeekday();
 
-        $aulasOcupadasActual = (int) HorarioAsignado::where('activo', true)
+        $ocupadasActualIds = HorarioAsignado::where('activo', true)
             ->where(function ($query) use ($fechaActual) {
                 $query->whereNull('fecha_especifica')
                     ->orWhere('fecha_especifica', $fechaActual);
@@ -54,8 +54,14 @@ class ReporteEstadisticoService
             })
             ->pluck('aula_id')
             ->filter()
-            ->unique()
-            ->count();
+            ->unique();
+
+        $aulasOcupadasActual = $ocupadasActualIds->count();
+
+        $aulasLibres = Aula::where('activo', true)
+            ->whereNotIn('id', $ocupadasActualIds->all())
+            ->orderBy('codigo_aula')
+            ->get(['id', 'codigo_aula', 'ubicacion', 'piso']);
 
         $presentes = $asistenciasMensuales
             ->filter(function ($asistencia) {
@@ -74,7 +80,7 @@ class ReporteEstadisticoService
             'docentes_activos' => $docentesActivos,
             'aulas_totales' => $totalAulas,
             'aulas_ocupadas' => $aulasOcupadasActual,
-            'aulas_libres' => max($totalAulas - $aulasOcupadasActual, 0),
+            'aulas_libres' => $aulasLibres->count(),
             'total_asistencias' => $totalAsistencias,
             'presentes' => $presentes,
             'porcentaje_asistencia' => $porcentajeAsistencia,
@@ -84,6 +90,17 @@ class ReporteEstadisticoService
                 'fin' => $fin->format('d/m/Y'),
             ],
             'hora_actual' => $ahora->format('H:i'),
+            'aulas_libres_detalles' => $aulasLibres
+                ->map(function (Aula $aula) {
+                    return [
+                        'id' => $aula->id,
+                        'codigo_aula' => $aula->codigo_aula,
+                        'ubicacion' => $aula->ubicacion,
+                        'piso' => $aula->piso,
+                    ];
+                })
+                ->values()
+                ->toArray(),
         ];
     }
 }

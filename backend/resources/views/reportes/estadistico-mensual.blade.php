@@ -74,6 +74,30 @@
             font-size: 12px;
             text-align: left;
         }
+        .free-aulas {
+            margin-bottom: 24px;
+        }
+        .free-aulas h2 {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .chip {
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #f3f4f6;
+            font-size: 12px;
+            color: #111827;
+            border: 1px solid #e5e7eb;
+        }
+        .empty-note {
+            font-size: 12px;
+            color: #6b7280;
+        }
         .footer {
             margin-top: 32px;
             text-align: center;
@@ -110,6 +134,27 @@
             <div class="title">Porcentaje asistencia</div>
             <div class="value">{{ $datos['porcentaje_asistencia'] }}%</div>
         </div>
+    </div>
+
+    <div class="free-aulas">
+        <h2>Aulas libres ahora</h2>
+        @if(!empty($datos['aulas_libres_detalles']))
+            <div class="chips">
+                @foreach($datos['aulas_libres_detalles'] as $aula)
+                    <span class="chip">
+                        {{ $aula['codigo_aula'] }}
+                        @if(!empty($aula['ubicacion']))
+                            · {{ $aula['ubicacion'] }}
+                        @endif
+                        @if(!empty($aula['piso']))
+                            (Piso {{ $aula['piso'] }})
+                        @endif
+                    </span>
+                @endforeach
+            </div>
+        @else
+            <p class="empty-note">No hay aulas libres ocupables en este momento.</p>
+        @endif
     </div>
 
     <div class="details">
