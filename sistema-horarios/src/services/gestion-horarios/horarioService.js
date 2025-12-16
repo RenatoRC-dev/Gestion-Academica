@@ -106,7 +106,10 @@ const horarioService = {
 
     calendarioDocente: async () => {
         const resp = await api.get('/horarios/calendario-docente');
-        return resp?.data?.data ?? [];
+        const data = resp?.data?.data;
+        if (Array.isArray(data)) return data;
+        if (Array.isArray(data?.agenda)) return data.agenda;
+        return [];
     },
 
     obtenerVirtualesDocente: async () => {

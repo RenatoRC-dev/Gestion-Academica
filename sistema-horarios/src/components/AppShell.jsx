@@ -6,6 +6,7 @@ import {
     FaBook,
     FaBuilding,
     FaCalendarAlt,
+    FaChartBar,
     FaChalkboardTeacher,
     FaClipboardList,
     FaFileAlt,
@@ -240,6 +241,12 @@ export default function AppShell({ children }) {
                     to: '/asistencias/metodos',
                     icon: FaListAlt,
                     label: 'Métodos de registro',
+                    roles: ['administrador_academico'],
+                },
+                {
+                    to: '/asistencias/reporte-estadistico',
+                    icon: FaChartBar,
+                    label: 'Reporte mensual',
                     roles: ['administrador_academico'],
                 },
                 {

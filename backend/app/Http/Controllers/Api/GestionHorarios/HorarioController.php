@@ -172,20 +172,39 @@ class HorarioController extends Controller
                 ], 404);
             }
 
-            $hasta = Carbon::now()->addWeeks(2);
             $horarios = HorarioAsignado::where('docente_id', $docente->persona_id)
-                ->with(['bloqueHorario.dia', 'bloqueHorario.horario', 'periodo', 'asistencias.estado'])
+                ->where('activo', true)
+                ->with([
+                    'grupo.materia',
+                    'aula',
+                    'bloqueHorario.dia',
+                    'bloqueHorario.horario',
+                    'periodo',
+                    'modalidad',
+                    'asistencias.estado',
+                ])
+                ->orderBy('periodo_academico_id')
+                ->orderBy('bloque_horario_id')
                 ->get();
 
-            $agenda = [];
-            foreach ($horarios as $horario) {
-                $items = $this->generarCalendario($horario, Carbon::now(), $hasta);
-                foreach ($items as $item) {
-                    $agenda[] = array_merge($item, ['horario_id' => $horario->id, 'grupo' => $horario->grupo_id]);
-                }
-            }
-
-            usort($agenda, fn($a, $b) => $a['fecha'] <=> $b['fecha']);
+            $agenda = $horarios->map(function (HorarioAsignado $horario) use ($docente) {
+                $bloque = $horario->bloqueHorario;
+                $dia = $bloque?->dia?->nombre ?? 'Día';
+                $horaInicio = $bloque?->horario?->hora_inicio;
+                $horaFin = $bloque?->horario?->hora_fin;
+                return [
+                    'id' => $horario->id,
+                    'materia' => $horario->grupo->materia->nombre ?? 'Sin materia',
+                    'grupo' => $horario->grupo->codigo_grupo ?? 'Sin grupo',
+                    'aula' => $horario->aula->codigo_aula ?? 'Sin aula',
+                    'periodo' => $horario->periodo->nombre ?? 'Sin periodo',
+                    'dia' => $dia,
+                    'hora_inicio' => $horaInicio,
+                    'hora_fin' => $horaFin,
+                    'modalidad' => $horario->modalidad->nombre ?? 'N/A',
+                    'virtual_autorizado' => (bool) $horario->virtual_autorizado,
+                ];
+            })->toArray();
 
             return response()->json([
                 'success' => true,

@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\GestionHorarios\HorarioController;
 use App\Http\Controllers\Api\GestionHorarios\HorarioFranjaController;
 use App\Http\Controllers\Api\Reportes\MetricasController;
 use App\Http\Controllers\Api\Reportes\ReporteAsistenciaController;
+use App\Http\Controllers\Api\Reportes\ReporteEstadisticoController;
 use App\Http\Controllers\Api\Seguridad\AuthController;
 use App\Http\Controllers\Api\Seguridad\BitacoraController;
 use App\Http\Controllers\Api\Seguridad\ImportacionController;
@@ -150,6 +151,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/generar', [ReporteAsistenciaController::class, 'generar']);
         Route::post('/exportar-pdf', [ReporteAsistenciaController::class, 'exportarPDF']);
         Route::post('/exportar-excel', [ReporteAsistenciaController::class, 'exportarExcel']);
+    });
+
+    // Reportes estticos mensuales
+    Route::prefix('reportes/estatico')->group(function () {
+        Route::get('/mensual', [ReporteEstadisticoController::class, 'mensual']);
+        Route::get('/mensual/pdf', [ReporteEstadisticoController::class, 'exportarPdf']);
     });
 
     // Importación Masiva - CU24

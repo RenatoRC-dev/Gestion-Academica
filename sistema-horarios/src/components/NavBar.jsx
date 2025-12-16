@@ -71,7 +71,7 @@ export default function NavBar() {
                                 <Item to="/asistencias/registrar">Registrar Asistencia</Item>
                                 <Item to="/asistencias/estados">Estados Asistencia</Item>
                                 <Item to="/asistencias/metodos">Métodos Registro</Item>
-                                <Item to="/asistencias/historial">Historial Asistencias</Item>
+                                <Item to="/asistencias/historial">Reporte Asistencias</Item>
                             </>
                         )}
                     </nav>

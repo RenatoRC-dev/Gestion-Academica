@@ -40,6 +40,7 @@ import MetodosRegistroPage from './pages/gestion-asistencia/MetodosRegistroPage.
 import RegistrarAsistenciaPage from './pages/gestion-asistencia/RegistrarAsistenciaPage.jsx';
 import HistorialAsistenciaPage from './pages/gestion-asistencia/HistorialAsistenciaPage.jsx';
 import MiHistorialAsistenciaPage from './pages/gestion-asistencia/MiHistorialAsistenciaPage.jsx';
+import ReporteEstadisticoPage from './pages/gestion-asistencia/ReporteEstadisticoPage.jsx';
 
 function Splash() {
     return (
@@ -118,6 +119,7 @@ function AuthContent() {
                         <Route path="/areas-academicas" element={<AreasAcademicasPage />} />
                         <Route path="/areas-administrativas" element={<AreasAdministrativasPage />} />
                         <Route path="/asistencias/historial" element={<HistorialAsistenciaPage />} />
+                        <Route path="/asistencias/reporte-estadistico" element={<ReporteEstadisticoPage />} />
 
                         {/* Rutas de Asistencia (Admin) */}
                         <Route path="/asistencias/registrar" element={<RegistrarAsistenciaPage />} />
